@@ -11,13 +11,15 @@ import {
   Dimensions
 } from 'react-native';
 import { Entypo } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
-const PodcastSplashScreen = ({ onGetStarted }) => {
+const GetStarted = ({ onGetStarted }) => {
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(50))[0];
   const pulseAnim = useState(new Animated.Value(1))[0];
+  const navigation = useNavigation();
   
   // Circle animations
   const circle1YAnim = useState(new Animated.Value(0))[0];
@@ -234,7 +236,9 @@ const PodcastSplashScreen = ({ onGetStarted }) => {
           <Animated.View style={{ transform: [{ scale: pulseAnim }], width: '95%' }}>
             <TouchableOpacity 
               style={styles.button} 
-              onPress={onGetStarted}
+              onPress={() => {
+                navigation.navigate('AuthStack');
+              }}
               activeOpacity={0.8}
             >
               <Text style={styles.buttonText}>Get Started</Text>
@@ -349,4 +353,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PodcastSplashScreen;
+export default GetStarted;

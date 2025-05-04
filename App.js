@@ -3,7 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import { View,StyleSheet, } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import OnboardingNavigator from './navigation/nav_routes'; // Now correctly importing
+import OnboardingNavigator from './navigation/OnboardingNavigator';
+import AuthNavigator from './navigation/AuthNavigator';
 
 const Stack = createNativeStackNavigator();
 
@@ -24,7 +25,11 @@ export default function App() {
             component={OnboardingNavigator} 
             options={{ animationEnabled: false }}
           />
-          {/* Add more navigation stacks here as your app grows */}
+          <Stack.Screen
+            name="AuthStack" 
+            component={AuthNavigator} 
+            options={{ animationEnabled: false }}
+          />
         </Stack.Navigator>
       </View>
     </NavigationContainer>

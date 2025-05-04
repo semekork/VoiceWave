@@ -157,7 +157,7 @@ const Onboarding = ({ navigation }) => {
     switch (currentScreen) {
       case 0:
         return (
-          <Animated.View style={[styles.floatingImageContainer, floatingStyle]}>
+          <Animated.View style={[styles.CasetteContainer, floatingStyle]}>
             <Image
               source={require('../../assets/Onboarding/casette_tape.png')}
               style={styles.floatingImage}
@@ -410,6 +410,12 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  CasetteContainer: {
+    position: 'absolute',
+    right: 0,
+    bottom: 180,
+    zIndex: 10,
   },
   floatingImageContainer: {
     position: 'absolute',
