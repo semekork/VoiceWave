@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -7,158 +7,420 @@ import {
   TouchableOpacity, 
   StatusBar, 
   Image,
-  TextInput
+  TextInput,
+  Animated,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 
 const LoginScreen = ({ navigation }) => {
+  // Form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  
+  // Input refs for focus handling
+  const passwordInputRef = useRef(null);
+  
+  // Validate email format
+  const validateEmail = (text) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!text) {
+      setEmailError('Email is required');
+      return false;
+    } else if (!emailRegex.test(text)) {
+      setEmailError('Please enter a valid email');
+      return false;
+    } else {
+      setEmailError('');
+      return true;
+    }
+  };
+  
+  // Validate password
+  const validatePassword = (text) => {
+    if (!text) {
+      setPasswordError('Password is required');
+      return false;
+    } else if (text.length < 6) {
+      setPasswordError('Password must be at least 6 characters');
+      return false;
+    } else {
+      setPasswordError('');
+      return true;
+    }
+  };
 
+  // Login handler with validation
   const handleLogin = () => {
-    // Login logic would go here
-    console.log('Logging in with:', email, password);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    const isEmailValid = validateEmail(email);
+    const isPasswordValid = validatePassword(password);
+    
+    if (isEmailValid && isPasswordValid) {
+      setIsLoading(true);
+      
+      // Simulate API call
+      setTimeout(() => {
+        setIsLoading(false);
+        console.log('Logging in with:', email, password);
+        // Navigate to home screen on success
+        navigation.navigate('HomeScreen');
+      }, 1500);
+    }
+  };
+  
+  // Toggle password visibility with haptic feedback
+  const togglePasswordVisibility = () => {
+    Haptics.selectionAsync();
+    setShowPassword(!showPassword);
+  };
+  
+  // Handle keyboard events
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      'keyboardDidShow',
+      () => {
+        setKeyboardVisible(true);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
+  
+  // Entrance animations
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+  
+  // Bio authentication handler
+  const handleBioAuth = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      "Bio-Authentication",
+      "Would you like to use biometric authentication?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        { 
+          text: "OK", 
+          onPress: () => console.log("Bio-auth initiated") 
+        }
+      ]
+    );
+  };
+
+  // Show terms and conditions
+  const showTermsAndConditions = () => {
+    Haptics.selectionAsync();
+    Alert.alert(
+      "Terms and Conditions",
+      "These are the terms and conditions for using our app.",
+      [{ text: "OK" }]
+    );
+  };
+
+  // Show privacy policy
+  const showPrivacyPolicy = () => {
+    Haptics.selectionAsync();
+    Alert.alert(
+      "Privacy Policy",
+      "This is our privacy policy for handling your data.",
+      [{ text: "OK" }]
+    );
   };
 
   return (
     <>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" backgroundColor="#9C3141" />
       <LinearGradient
         colors={['#9C3141', '#5E1B26']}
         style={styles.background}
       >
-        <SafeAreaView style={styles.safeContainer}>
-          {/* Logo */}
-          <View style={styles.logoContainer}>
-            <Image
-              source={require("../../assets/Logo/logo_white.png")}
-              style={styles.logo}
-              resizeMode='contain'
-            />
-          </View>
-          
-          {/* Main Title */}
-          <View style={styles.titleContainer}>
-            <Text style={styles.titleText}>WELCOME</Text>
-          </View>
-          
-          {/* Tagline */}
-          <View style={styles.taglineContainer}>
-            <Text style={styles.taglineText}>
-              A better way to learn, anytime, anywhere.
-            </Text>
-          </View>
-
-          {/* Background "LOGIN" Letters */}
-          <View style={styles.backgroundLetters}>
-            <Text style={styles.backgroundLettersText}>LOG{'\n'}IN</Text>
-          </View>
-          
-          {/* Login Form */}
-          <View style={styles.formContainer}>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor="#8391A1"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-            
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your password"
-                placeholderTextColor="#8391A1"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-              />
-              <TouchableOpacity 
-                style={styles.eyeIcon}
-                onPress={() => setShowPassword(!showPassword)}
-              >
-                <Ionicons 
-                  name={showPassword ? "eye-outline" : "eye-off-outline"} 
-                  size={24} 
-                  color="#767676" 
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingView}
+        >
+          <SafeAreaView style={styles.safeContainer}>
+            {/* Animated container for all content */}
+            <Animated.View style={[
+              styles.animatedContainer,
+              {
+                opacity: fadeAnim,
+                transform: [
+                  { translateY: slideAnim },
+                  { scale: scaleAnim }
+                ]
+              }
+            ]}>
+              {/* Logo */}
+              <View style={[
+                styles.logoContainer,
+                isKeyboardVisible && styles.logoContainerSmall
+              ]}>
+                <Image
+                  source={require("../../assets/Logo/logo_white.png")}
+                  style={[
+                    styles.logo,
+                    isKeyboardVisible && styles.logoSmall
+                  ]}
+                  resizeMode='contain'
+                  accessible={true}
+                  accessibilityLabel="App logo"
                 />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.forgotPasswordContainer}>
-            <TouchableOpacity onPress={() => navigation.navigate("ForgotPasswordScreen")}>
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity onPress={handleLogin}>
-            <View style={styles.loginButton}>
-              <LinearGradient
-                colors={["#1963A7", "#49A1D1"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.loginButton}
-              >
-              <Text style={styles.loginButtonText}>Continue</Text>
-              </LinearGradient>
-            </View>
-            </TouchableOpacity>
-            
-            <View style={styles.dividerContainer}>
-              <View style={styles.divider} />
-              <Text style={styles.dividerText}>Or Login with</Text>
-              <View style={styles.divider} />
-            </View>
-            
-            <View style={styles.socialLoginContainer}>
-              <TouchableOpacity style={styles.googleButton}>
-                <Image 
-                  source={require("../../assets/Auth/google.png")} 
-                  style={styles.googleIcon}
-                  resizeMode="contain"
-                />
-                <Text style={styles.googleButtonText}>Sign in with Google</Text>
-              </TouchableOpacity>
+              </View>
               
-            </View>
-            
-            <View style={styles.registerContainer}>
-              <Text style={styles.registerText}>Don't have an account? </Text>
-              <TouchableOpacity
-                onPress={() => navigation.navigate("RegisterScreen")}>
-                <Text style={styles.registerLinkText}>Create Account</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <TouchableOpacity style={styles.bioAuthContainer}>
-              <Image 
-                source={require("../../assets/Auth/fingerprint.png")} 
-                style={styles.bioAuthIcon}
-                resizeMode="contain"
-              />
-              <Image 
-                source={require("../../assets/Auth/face-id.png")} 
-                style={styles.bioAuthIcon}
-                resizeMode="contain"
-              />
-              <Text style={styles.bioAuthText}>Use Bio-Authentication?</Text>
-            </TouchableOpacity>
-            
-            <View style={styles.termsContainer}>
-              <Text style={styles.termsText}>
-                By proceeding, you consent to our 
-                <Text style={styles.termsLinkText}> Terms and Conditions </Text>
-                and
-                <Text style={styles.termsLinkText}> Privacy Policy</Text>
-              </Text>
-            </View>
-          </View>
-        </SafeAreaView>
+              {/* Main Title - Hide when keyboard is visible */}
+              {!isKeyboardVisible && (
+                <>
+                  <View style={styles.titleContainer}>
+                    <Text style={styles.titleText} accessibilityRole="header">WELCOME</Text>
+                  </View>
+                  
+                  {/* Tagline */}
+                  <View style={styles.taglineContainer}>
+                    <Text style={styles.taglineText}>
+                      A better way to learn, anytime, anywhere.
+                    </Text>
+                  </View>
+                </>
+              )}
+
+              {/* Background "LOGIN" Letters */}
+              {!isKeyboardVisible && (
+                <View style={styles.backgroundLetters} accessibilityElementsHidden={true}>
+                  <Text style={styles.backgroundLettersText}>LOG{'\n'}IN</Text>
+                </View>
+              )}
+              
+              {/* Login Form */}
+              <View style={styles.formContainer}>
+                <View style={styles.inputContainer}>
+                  <Ionicons 
+                    name="mail-outline" 
+                    size={20} 
+                    color="#8391A1" 
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={[styles.input, emailError ? styles.inputError : null]}
+                    placeholder="Enter your email"
+                    placeholderTextColor="#8391A1"
+                    value={email}
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      validateEmail(text);
+                    }}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    returnKeyType="next"
+                    onSubmitEditing={() => passwordInputRef.current.focus()}
+                    blurOnSubmit={false}
+                    accessibilityLabel="Email input"
+                    accessibilityHint="Enter your email address"
+                  />
+                </View>
+                {emailError ? (
+                  <Text style={styles.errorText} accessibilityRole="alert">{emailError}</Text>
+                ) : null}
+                
+                <View style={styles.inputContainer}>
+                  <Ionicons 
+                    name="lock-closed-outline" 
+                    size={20} 
+                    color="#8391A1" 
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    ref={passwordInputRef}
+                    style={[styles.input, passwordError ? styles.inputError : null]}
+                    placeholder="Enter your password"
+                    placeholderTextColor="#8391A1"
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      validatePassword(text);
+                    }}
+                    secureTextEntry={!showPassword}
+                    returnKeyType="done"
+                    onSubmitEditing={handleLogin}
+                    accessibilityLabel="Password input"
+                    accessibilityHint="Enter your password"
+                  />
+                  <TouchableOpacity 
+                    style={styles.eyeIcon}
+                    onPress={togglePasswordVisibility}
+                    accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons 
+                      name={showPassword ? "eye-outline" : "eye-off-outline"} 
+                      size={24} 
+                      color="#767676" 
+                    />
+                  </TouchableOpacity>
+                </View>
+                {passwordError ? (
+                  <Text style={styles.errorText} accessibilityRole="alert">{passwordError}</Text>
+                ) : null}
+
+                <View style={styles.forgotPasswordContainer}>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      navigation.navigate("ForgotPasswordScreen");
+                    }}
+                    accessibilityLabel="Forgot Password"
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity 
+                  onPress={handleLogin}
+                  disabled={isLoading}
+                  accessibilityLabel="Login button"
+                  accessibilityRole="button"
+                  accessibilityHint="Double tap to log in"
+                >
+                  <Animated.View>
+                    <LinearGradient
+                      colors={["#1963A7", "#49A1D1"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+                    >
+                      {isLoading ? (
+                        <ActivityIndicator color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.loginButtonText}>Continue</Text>
+                      )}
+                    </LinearGradient>
+                  </Animated.View>
+                </TouchableOpacity>
+                
+                <View style={styles.dividerContainer}>
+                  <View style={styles.divider} />
+                  <Text style={styles.dividerText}>Or Login with</Text>
+                  <View style={styles.divider} />
+                </View>
+                
+                <View style={styles.socialLoginContainer}>
+                  <TouchableOpacity 
+                    style={styles.googleButton}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      console.log('Google login initiated');
+                    }}
+                    accessibilityLabel="Sign in with Google"
+                    accessibilityRole="button"
+                  >
+                    <Image 
+                      source={require("../../assets/Auth/google.png")} 
+                      style={styles.googleIcon}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.googleButtonText}>Sign in with Google</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.registerContainer}>
+                  <Text style={styles.registerText}>Don't have an account? </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      navigation.navigate("RegisterScreen");
+                    }}
+                    accessibilityLabel="Create Account"
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.registerLinkText}>Create Account</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <TouchableOpacity 
+                  style={styles.bioAuthContainer}
+                  onPress={handleBioAuth}
+                  accessibilityLabel="Use Bio-Authentication"
+                  accessibilityRole="button"
+                >
+                  <Image 
+                    source={require("../../assets/Auth/fingerprint.png")} 
+                    style={styles.bioAuthIcon}
+                    resizeMode="contain"
+                  />
+                  <Image 
+                    source={require("../../assets/Auth/face-id.png")} 
+                    style={styles.bioAuthIcon}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.bioAuthText}>Use Bio-Authentication?</Text>
+                </TouchableOpacity>
+                
+                <View style={styles.termsContainer}>
+                  <Text style={styles.termsText}>
+                    By proceeding, you consent to our 
+                    <Text 
+                      style={styles.termsLinkText}
+                      onPress={showTermsAndConditions}
+                      accessibilityRole="link"
+                    > Terms and Conditions </Text>
+                    and
+                    <Text 
+                      style={styles.termsLinkText}
+                      onPress={showPrivacyPolicy}
+                      accessibilityRole="link"
+                    > Privacy Policy</Text>
+                  </Text>
+                </View>
+              </View>
+            </Animated.View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
       </LinearGradient>
     </>
   );
@@ -168,6 +430,9 @@ const styles = StyleSheet.create({
   background: {
     flex: 1,
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   safeContainer: {
     flex: 1,
     paddingHorizontal: 24,
@@ -175,17 +440,29 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
     position: 'relative',
   },
+  animatedContainer: {
+    flex: 1,
+  },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 24,
+    height: 70,
+  },
+  logoContainerSmall: {
+    marginBottom: 12,
+    height: 50,
   },
   logo: {
     width: 140,
     height: 70,
   },
+  logoSmall: {
+    width: 100,
+    height: 50,
+  },
   titleContainer: {
-    alignItems: 'left',
+    alignItems: 'flex-start',
   },
   titleText: {
     color: '#FFFFFF',
@@ -193,9 +470,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 0,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   taglineContainer: {
-    alignItems: 'left',
+    alignItems: 'flex-start',
     marginTop: 5,
     marginBottom: 40,
   },
@@ -211,38 +490,67 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 0,
     height: '60%',
-    justifyContent: 'left',
-    alignItems: 'left',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    opacity: 0.08,
   },
   backgroundLettersText: {
-    color: 'rgba(255, 255, 255, 0.1)',
+    color: '#FFFFFF',
     fontSize: 180,
     fontWeight: 'bold',
     lineHeight: 220,
   },
   formContainer: {
     width: '100%',
+    zIndex: 1,
   },
   inputContainer: {
-    marginBottom: 16,
+    marginBottom: 12,
     position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inputIcon: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 1,
   },
   input: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 18,
+    paddingVertical: 18,
+    paddingLeft: 46,
+    paddingRight: 46,
     fontSize: 16,
     color: '#333333',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  inputError: {
+    borderColor: '#FF3B30',
+    borderWidth: 1,
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 12,
+    marginBottom: 8,
+    marginLeft: 4,
   },
   eyeIcon: {
     position: 'absolute',
     right: 16,
-    top: 12,
     padding: 4,
+    zIndex: 1,
   },
   forgotPasswordContainer: {
     alignItems: 'flex-end',
-    marginBottom: 10,
+    marginBottom: 20,
   },
   forgotPasswordText: {
     color: '#FFFFFF',
@@ -252,11 +560,17 @@ const styles = StyleSheet.create({
   loginButton: {
     width: '100%',
     borderRadius: 12,
-    padding: 20,
-    paddingLeft: 4,
-    paddingRight: 4,
+    paddingVertical: 18,
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  loginButtonDisabled: {
+    opacity: 0.7,
   },
   loginButtonText: {
     color: '#FFFFFF',
@@ -279,8 +593,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   socialLoginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: 24,
   },
   googleButton: {
@@ -288,17 +600,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    paddingLeft: 20,
-    paddingRight: 25,
-    paddingTop: 10,
-    paddingBottom: 10,
-    flex: 1,
-    marginRight: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   googleIcon: {
-    width: 40,
-    height: 40,
+    width: 24,
+    height: 24,
     marginRight: 10,
   },
   googleButtonText: {
@@ -325,11 +638,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   bioAuthIcon: {
     width: 20,
     height: 20,
     marginRight: 5,
+    tintColor: '#FFFFFF',
   },
   bioAuthText: {
     color: '#FFFFFF',
@@ -345,6 +663,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     textAlign: 'center',
+    lineHeight: 18,
   },
   termsLinkText: {
     color: '#FFFFFF',
