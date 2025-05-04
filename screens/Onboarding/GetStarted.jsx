@@ -10,7 +10,7 @@ import {
   Animated,
   Dimensions
 } from 'react-native';
-import { Entypo, } from '@expo/vector-icons';
+import { Entypo } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
@@ -18,18 +18,30 @@ const PodcastSplashScreen = ({ onGetStarted }) => {
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(50))[0];
   const pulseAnim = useState(new Animated.Value(1))[0];
+  
+  // Circle animations
+  const circle1YAnim = useState(new Animated.Value(0))[0];
+  const circle1XAnim = useState(new Animated.Value(0))[0];
+  const circle2YAnim = useState(new Animated.Value(0))[0];
+  const circle2XAnim = useState(new Animated.Value(0))[0];
+  const circle1ScaleAnim = useState(new Animated.Value(1))[0];
+  const circle2ScaleAnim = useState(new Animated.Value(1))[0];
 
   useEffect(() => {
+    // Main content animations
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 1200,
       useNativeDriver: true,
     }).start();
+    
     Animated.timing(slideAnim, {
       toValue: 0,
       duration: 800,
       useNativeDriver: true,
     }).start();
+    
+    // Button pulse animation
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -44,6 +56,132 @@ const PodcastSplashScreen = ({ onGetStarted }) => {
         }),
       ])
     ).start();
+    
+    // Circle 1 floating animations
+    Animated.loop(
+      Animated.parallel([
+        // Y-axis movement
+        Animated.sequence([
+          Animated.timing(circle1YAnim, {
+            toValue: 15,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(circle1YAnim, {
+            toValue: 0,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(circle1YAnim, {
+            toValue: -10,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(circle1YAnim, {
+            toValue: 0,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+        ]),
+        // X-axis movement
+        Animated.sequence([
+          Animated.timing(circle1XAnim, {
+            toValue: 10,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(circle1XAnim, {
+            toValue: -5,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(circle1XAnim, {
+            toValue: 0,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+        ]),
+        // Scale animation
+        Animated.sequence([
+          Animated.timing(circle1ScaleAnim, {
+            toValue: 1.1,
+            duration: 4000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(circle1ScaleAnim, {
+            toValue: 0.95,
+            duration: 4000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(circle1ScaleAnim, {
+            toValue: 1,
+            duration: 4000,
+            useNativeDriver: true,
+          }),
+        ]),
+      ])
+    ).start();
+    
+    // Circle 2 floating animations (slightly different timing for varied effect)
+    Animated.loop(
+      Animated.parallel([
+        // Y-axis movement
+        Animated.sequence([
+          Animated.timing(circle2YAnim, {
+            toValue: -12,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(circle2YAnim, {
+            toValue: 5,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(circle2YAnim, {
+            toValue: 0,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+        ]),
+        // X-axis movement
+        Animated.sequence([
+          Animated.timing(circle2XAnim, {
+            toValue: -8,
+            duration: 3500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(circle2XAnim, {
+            toValue: 12,
+            duration: 3500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(circle2XAnim, {
+            toValue: 0,
+            duration: 3500,
+            useNativeDriver: true,
+          }),
+        ]),
+        // Scale animation
+        Animated.sequence([
+          Animated.timing(circle2ScaleAnim, {
+            toValue: 0.9,
+            duration: 3500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(circle2ScaleAnim, {
+            toValue: 1.05,
+            duration: 3500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(circle2ScaleAnim, {
+            toValue: 1,
+            duration: 3500,
+            useNativeDriver: true,
+          }),
+        ]),
+      ])
+    ).start();
+    
   }, []);
 
   return (
@@ -52,9 +190,31 @@ const PodcastSplashScreen = ({ onGetStarted }) => {
       style={styles.backgroundImage}
     >
       <SafeAreaView style={styles.container}>
-        {/* Decorative elements */}
-        <View style={styles.decorativeCircle1} />
-        <View style={styles.decorativeCircle2} />
+        {/* Animated decorative elements */}
+        <Animated.View 
+          style={[
+            styles.decorativeCircle1,
+            { 
+              transform: [
+                { translateY: circle1YAnim },
+                { translateX: circle1XAnim },
+                { scale: circle1ScaleAnim }
+              ] 
+            }
+          ]} 
+        />
+        <Animated.View 
+          style={[
+            styles.decorativeCircle2,
+            { 
+              transform: [
+                { translateY: circle2YAnim },
+                { translateX: circle2XAnim },
+                { scale: circle2ScaleAnim }
+              ] 
+            }
+          ]} 
+        />
         
         {/* Main content container */}
         <View style={styles.contentContainer}>
