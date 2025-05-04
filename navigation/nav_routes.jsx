@@ -3,9 +3,8 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 
 import SplashScreen from "../screens/Onboarding/SplashScreen";
-import Onboarding1 from "../screens/Onboarding/Onboarding1";
-import Onboarding2 from "../screens/Onboarding/Onboarding2";
-import Onboarding3 from "../screens/Onboarding/Onboarding3";
+import Onboarding from "../screens/Onboarding/Onboarding";
+import GetStarted from "../screens/Onboarding/GetStarted";
 
 const OnboardingStack = createNativeStackNavigator();
 
@@ -24,18 +23,15 @@ export const OnboardingScreen = () => {
         options={{ animation: 'fade' }}
       />
       <OnboardingStack.Screen 
-        name="Onboarding1" 
-        component={Onboarding1}
+        name="Onboarding" 
+        component={Onboarding}
         options={{ animation: 'none' }}
       />
        
       <OnboardingStack.Screen 
-        name="Onboarding2" 
-        component={Onboarding2} 
-      />
-      <OnboardingStack.Screen 
-        name="Onboarding3" 
-        component={Onboarding3} 
+        name="GetStarted" 
+        component={GetStarted} 
+        options={{ animation: 'fade' }}
       />
     
     </OnboardingStack.Navigator>
