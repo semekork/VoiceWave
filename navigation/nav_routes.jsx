@@ -1,39 +1,40 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-
+// Onboarding Screens
 import SplashScreen from "../screens/Onboarding/SplashScreen";
 import Onboarding from "../screens/Onboarding/Onboarding";
 import GetStarted from "../screens/Onboarding/GetStarted";
 
-const OnboardingStack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator();
 
-export const OnboardingScreen = () => {
+
+export const OnboardingNavigator = () => {
   return (
-    <OnboardingStack.Navigator 
+    <Stack.Navigator 
       initialRouteName="SplashScreen"
       screenOptions={{ 
         headerShown: false,
         animation: "none"
       }}
     >
-      <OnboardingStack.Screen 
+      <Stack.Screen 
         name="SplashScreen" 
         component={SplashScreen} 
         options={{ animation: 'fade' }}
       />
-      <OnboardingStack.Screen 
+      <Stack.Screen 
         name="Onboarding" 
         component={Onboarding}
         options={{ animation: 'none' }}
       />
-       
-      <OnboardingStack.Screen 
+      <Stack.Screen 
         name="GetStarted" 
         component={GetStarted} 
         options={{ animation: 'fade' }}
       />
-    
-    </OnboardingStack.Navigator>
+    </Stack.Navigator>
   );
 };
+
+export default OnboardingNavigator;
