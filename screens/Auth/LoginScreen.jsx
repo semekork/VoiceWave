@@ -17,9 +17,13 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 
-const LoginScreen = ({ navigation }) => {
+
+const LoginScreen = () => {
+  const navigation = useNavigation();
+  
   // Form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -81,7 +85,7 @@ const LoginScreen = ({ navigation }) => {
         setIsLoading(false);
         console.log('Logging in with:', email, password);
         // Navigate to home screen on success
-        navigation.navigate('HomeScreen');
+        navigation.navigate('TabsStack');
       }, 1500);
     }
   };
