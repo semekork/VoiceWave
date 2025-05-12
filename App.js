@@ -7,11 +7,13 @@ import OnboardingNavigator from './navigation/OnboardingNavigator';
 import AuthNavigator from './navigation/AuthNavigator';
 import TabsNavigator from './navigation/TabsNavigator';
 import MainNavigator from './navigation/MainNavigator';
+import { AudioPlayerProvider } from './context/AudioPlayerContext';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
+    <AudioPlayerProvider>
     <NavigationContainer>
       <StatusBar style="light" />
       <Stack.Navigator
@@ -43,6 +45,7 @@ export default function App() {
         />
       </Stack.Navigator>
     </NavigationContainer>
+    </AudioPlayerProvider>
   );
 }
 

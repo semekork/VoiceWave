@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  View, 
-  Text, 
-  Image, 
-  TouchableOpacity, 
+import {
+  StyleSheet,
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
   SafeAreaView,
   StatusBar,
   Dimensions,
@@ -15,22 +15,20 @@ import Slider from '@react-native-community/slider';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 
-import useAudioPlayer from '../../hooks/useAudioPlayer';
+import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext'; // ← NEW
 import AudioPlayerMenu from '../../components/AudioPlayerMenu';
-import SleepTimer from '../../components/SleepTimer'; // Import the new SleepTimer component
+import SleepTimer from '../../components/SleepTimer';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function PlayerScreen({ navigation, route }) {
-  // Extract podcast details from route params
-  const { 
-    podcastTitle = 'Financial Freedom Mindset', 
+  const {
+    podcastTitle = 'Financial Freedom Mindset',
     podcastSubtitle = 'Sounds of Accra',
-    audioSource = require('../../assets/audio/Anendlessocean-Gratitude.mp3'),
     podcastImage = require('../../assets/image 15.png')
-  } = route.params || {};
+  } = route.params || currentPodcast || {};
 
-  // Audio player hook
+  // Use shared player context
   const {
     isPlaying,
     position,
@@ -44,27 +42,18 @@ export default function PlayerScreen({ navigation, route }) {
     changePlaybackSpeed,
     setVolume,
     formatTime,
-    pause // Add this method to pause audio
-  } = useAudioPlayer({ 
-    audioSource,  
-    autoPlay: true,
-    defaultVolume: 0.5,
-    persistPosition: true 
-  });
+    pause,
+    currentPodcast
+  } = useGlobalAudioPlayer();
 
-  // Menu state
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const waveformRef = useRef(null);
   const menuAnimation = useRef(new Animated.Value(0)).current;
 
-  // Sleep Timer Integration
-  const sleepTimer = SleepTimer({ 
-    onPauseAudio: () => {
-      pause(); // Use the pause method from useAudioPlayer
-    }
+  const sleepTimer = SleepTimer({
+    onPauseAudio: () => pause()
   });
 
-  // Animate menu visibility
   useEffect(() => {
     Animated.timing(menuAnimation, {
       toValue: isMenuVisible ? 1 : 0,
@@ -73,35 +62,22 @@ export default function PlayerScreen({ navigation, route }) {
     }).start();
   }, [isMenuVisible]);
 
-  // Menu handlers
   const handleDownloadPodcast = async () => {
-    try {
-      // For demonstration - you'd replace this with actual download logic
-      Alert.alert('Download', 'Podcast download started');
-    } catch (error) {
-      console.error('Download failed:', error);
-      Alert.alert('Error', 'Failed to download podcast');
-    }
+    Alert.alert('Download', 'Podcast download started');
   };
 
   const handleSharePodcast = async () => {
     try {
-      // For demonstration - you'd replace this with actual sharing logic
-      const shareOptions = {
+      await Sharing.shareAsync('', {
         dialogTitle: 'Share Podcast',
         mimeType: 'audio/mp3',
-        // You'd typically use a local or remote file URI here
-        // fileUrl: 
-      };
-      await Sharing.shareAsync(audioSource, shareOptions);
+      });
     } catch (error) {
-      console.error('Sharing failed:', error);
       Alert.alert('Error', 'Failed to share podcast');
     }
   };
 
   const handlePlaybackSettings = () => {
-    // Implement playback settings
     Alert.alert('Playback Settings', 'Customize your listening experience', [
       { text: 'Audio Quality', onPress: () => {} },
       { text: 'Equalizer', onPress: () => {} },
@@ -114,44 +90,36 @@ export default function PlayerScreen({ navigation, route }) {
 
     const { locationX } = event.nativeEvent;
     const waveformWidth = SCREEN_WIDTH - 40;
-
     const seekPercentage = locationX / waveformWidth;
     const newPosition = Math.floor(seekPercentage * duration);
-    
+
     seekToPosition(newPosition);
   };
 
   const generateWaveform = () => {
     const barCount = 40;
     const isAtEnd = position >= duration || (duration > 0 && Math.abs(position - duration) < 1000);
-    
-    const played = isAtEnd 
-      ? barCount 
-      : Math.floor((position / duration) * barCount);
-    
+    const played = isAtEnd ? barCount : Math.floor((position / duration) * barCount);
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         ref={waveformRef}
-        style={styles.waveformContainer} 
+        style={styles.waveformContainer}
         onPress={handleWaveformSeek}
         activeOpacity={1}
       >
         {Array.from({ length: barCount }).map((_, index) => {
-          const height = 30;
-          
           const opacityFactor = 1 - (Math.abs(index - played) / barCount);
           const backgroundColor = index < played ? '#D32F2F' : '#AAAAAA';
-          const opacity = index < played 
-            ? Math.max(0.3, opacityFactor)
-            : 0.6;
+          const opacity = index < played ? Math.max(0.3, opacityFactor) : 0.6;
 
           return (
             <View
               key={index}
               style={[
                 styles.waveformBar,
-                { 
-                  height,
+                {
+                  height: 30,
                   backgroundColor,
                   opacity,
                 }
@@ -166,53 +134,40 @@ export default function PlayerScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={28} color="#000" />
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.menuButton} 
-          onPress={() => setIsMenuVisible(!isMenuVisible)}
-        >
+        <TouchableOpacity style={styles.menuButton} onPress={() => setIsMenuVisible(!isMenuVisible)}>
           <Feather name="more-horizontal" size={24} color="#000" />
         </TouchableOpacity>
       </View>
-      
-      {/* Podcast Logo */}
+
       <View style={styles.logoContainer}>
-        <Image
-          source={podcastImage}
-          style={styles.logo}
-        />
+        <Image source={podcastImage} style={styles.logo} />
       </View>
-      
-      {/* Podcast Info */}
+
       <View style={styles.infoContainer}>
         <Text style={styles.subTitle}>{podcastSubtitle}</Text>
         <Text style={styles.title}>{podcastTitle}</Text>
       </View>
-      
-      {/* Waveform */}
+
       {generateWaveform()}
-      
-      {/* Time */}
+
       <View style={styles.timeContainer}>
         <Text style={styles.timeText}>{formatTime(position)}</Text>
         <Text style={styles.timeText}>-{formatTime(duration - position)}</Text>
       </View>
-      
-      {/* Controls */}
+
       <View style={styles.controlsContainer}>
         <TouchableOpacity style={styles.speedButton} onPress={changePlaybackSpeed}>
           <Text style={styles.speedText}>{playbackSpeed}x</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.controlButton} onPress={() => skipBackward()}>
           <Text style={styles.skipButtonText}>15</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.playButton} onPress={playPause}>
           {position >= duration ? (
             <Ionicons name="reload" size={36} color="#000" />
@@ -222,16 +177,14 @@ export default function PlayerScreen({ navigation, route }) {
             <Ionicons name="play" size={36} color="#000" />
           )}
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.controlButton} onPress={() => skipForward()}>
           <Text style={styles.skipButtonText}>30</Text>
         </TouchableOpacity>
-        
-        {/* Replace the previous sleep timer button with the new one */}
+
         {sleepTimer.sleepTimerButton}
       </View>
-      
-      {/* Volume Slider */}
+
       <View style={styles.volumeContainer}>
         <Ionicons name="volume-mute-outline" size={20} style={styles.volumeIcon} />
         <Slider
@@ -248,25 +201,21 @@ export default function PlayerScreen({ navigation, route }) {
         <Ionicons name="volume-high-outline" size={20} style={styles.volumeIcon} />
       </View>
 
-      {/* Sleep Timer Display */}
       {sleepTimer.sleepTimerDisplay}
-
-      {/* Sleep Timer Modal */}
       {sleepTimer.sleepTimerModal}
 
-      {/* Device Options Container */}
-      <Animated.View 
+      <Animated.View
         style={[
-          styles.overlayBackground, 
-          { 
+          styles.overlayBackground,
+          {
             opacity: menuAnimation,
             display: isMenuVisible ? 'flex' : 'none'
           }
         ]}
       >
-        <TouchableOpacity 
-          style={styles.overlayTouchable} 
-          onPress={() => setIsMenuVisible(false)} 
+        <TouchableOpacity
+          style={styles.overlayTouchable}
+          onPress={() => setIsMenuVisible(false)}
           activeOpacity={1}
         />
       </Animated.View>
@@ -283,7 +232,6 @@ export default function PlayerScreen({ navigation, route }) {
   );
 }
 
-// Styles remain the same as in the original file
 const styles = StyleSheet.create({
   container: {
     flex: 1,

@@ -2,35 +2,61 @@ import React from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { useGlobalAudioPlayer } from "../context/AudioPlayerContext";
+import { isSameAudioSource } from '../utils/audioHelpers';
 
 const MiniPlayer = () => {
   const navigation = useNavigation();
+  const { loadAudio, audioSource, playPause, isPlaying, setCurrentPodcast, skipForward } = useGlobalAudioPlayer();
 
-  const handlePress = () => {
-    navigation.navigate("MainStack", { screen: "PlayerScreen" })
+  const podcastDetails = {
+    podcastTitle: "Can you solve the honeybee riddle?",
+    podcastSubtitle: "February 15",
+    audioSource: require("../assets/audio/Anendlessocean-Gratitude.mp3"),
+    podcastImage: require("../assets/image 15.png")
+  };
+
+  const handlePress = async () => {
+    if (!isSameAudioSource(audioSource, podcastDetails.audioSource)) {
+      await loadAudio(podcastDetails.audioSource);
+    }
+    setCurrentPodcast(podcastDetails);
+  
+    navigation.navigate("MainStack", {
+      screen: "PlayerScreen",
+      params: podcastDetails
+    });
   };
 
   return (
     <TouchableOpacity style={styles.container} onPress={handlePress}>
       <View style={styles.leftSection}>
         <Image
-          source={require("../assets/image 15.png")}
+          source={podcastDetails.podcastImage}
           style={styles.image}
         />
         <View style={styles.textContainer}>
           <Text style={styles.title} numberOfLines={1}>
-            Can you solve the honeybee riddle?
+            {podcastDetails.podcastTitle}
           </Text>
-          <Text style={styles.subtitle}>February 15</Text>
+          <Text style={styles.subtitle}>{podcastDetails.podcastSubtitle}</Text>
         </View>
       </View>
 
       <View style={styles.rightSection}>
-        <Ionicons name="play" size={24} color="#000" style={{ marginRight: 16 }} />
-        <View style={styles.durationContainer}>
+        <TouchableOpacity onPress={playPause}>
+          <Ionicons
+            name={isPlaying ? "pause" : "play"}
+            size={24}
+            color="#000"
+            style={{ marginRight: 16 }}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => skipForward()}>
           <Ionicons name="refresh" size={20} color="#000" />
           <Text style={styles.durationText}>30</Text>
-        </View>
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
