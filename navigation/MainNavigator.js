@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 // Import navigators and screens
 import TabsNavigator from "./TabsNavigator";
 import PlayerScreen from "../screens/Home/PlayerScreen";
+import QueueScreen from "../screens/Home/QueueScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -12,6 +13,7 @@ const MainNavigator = () => {
     <Stack.Navigator initialRouteName="PlayerScreen" screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Main" component={TabsNavigator} />
       <Stack.Screen name="PlayerScreen" component={PlayerScreen} />
+      <Stack.Screen name="QueueScreen" component={QueueScreen} />
     </Stack.Navigator>
   );
 };

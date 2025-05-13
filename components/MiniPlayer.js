@@ -1,32 +1,54 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useGlobalAudioPlayer } from "../context/AudioPlayerContext";
 import { isSameAudioSource } from '../utils/audioHelpers';
+import podcastList from "../constants/podcastList"; // 👈 Import podcast list
 
 const MiniPlayer = () => {
   const navigation = useNavigation();
-  const { loadAudio, audioSource, playPause, isPlaying, setCurrentPodcast, skipForward } = useGlobalAudioPlayer();
+  const {
+    loadAudio,
+    audioSource,
+    playPause,
+    isPlaying,
+    setCurrentPodcast,
+    skipForward,
+    sound,
+    isLoading,
+    error,
+  } = useGlobalAudioPlayer();
 
-  const podcastDetails = {
-    podcastTitle: "Can you solve the honeybee riddle?",
-    podcastSubtitle: "February 15",
-    audioSource: require("../assets/audio/Anendlessocean-Gratitude.mp3"),
-    podcastImage: require("../assets/image 15.png")
-  };
+  // Get your default podcast (first one, or change logic if needed)
+  const podcastDetails = podcastList[0];
 
   const handlePress = async () => {
     if (!isSameAudioSource(audioSource, podcastDetails.audioSource)) {
       await loadAudio(podcastDetails.audioSource);
     }
     setCurrentPodcast(podcastDetails);
-  
+
     navigation.navigate("MainStack", {
       screen: "PlayerScreen",
-      params: podcastDetails
+      params: podcastDetails,
     });
   };
+
+  const handlePlayPause = async () => {
+    if (!sound) {
+      console.log("⚠️ Sound is not loaded yet. Loading audio...");
+      await loadAudio(podcastDetails.audioSource);
+    }
+    console.log("🔊 playPause triggered, isPlaying:", isPlaying);
+    playPause();
+  };
+
+  useEffect(() => {
+    if (error) {
+      console.log("🚨 Audio error:", error);
+    }
+  }, [error]);
 
   return (
     <TouchableOpacity style={styles.container} onPress={handlePress}>
@@ -44,7 +66,7 @@ const MiniPlayer = () => {
       </View>
 
       <View style={styles.rightSection}>
-        <TouchableOpacity onPress={playPause}>
+        <TouchableOpacity onPress={handlePlayPause}>
           <Ionicons
             name={isPlaying ? "pause" : "play"}
             size={24}

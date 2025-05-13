@@ -12,10 +12,10 @@ import {
   Animated
 } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { Ionicons, Feather } from '@expo/vector-icons';
+import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 
-import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext'; // ← NEW
+import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext';
 import AudioPlayerMenu from '../../components/AudioPlayerMenu';
 import SleepTimer from '../../components/SleepTimer';
 
@@ -23,12 +23,12 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function PlayerScreen({ navigation, route }) {
   const {
-    podcastTitle = 'Financial Freedom Mindset',
-    podcastSubtitle = 'Sounds of Accra',
-    podcastImage = require('../../assets/image 15.png')
+    podcastTitle,
+    podcastSubtitle,
+    podcastImage,
   } = route.params || currentPodcast || {};
 
-  // Use shared player context
+  
   const {
     isPlaying,
     position,
@@ -43,7 +43,8 @@ export default function PlayerScreen({ navigation, route }) {
     setVolume,
     formatTime,
     pause,
-    currentPodcast
+    currentPodcast,
+    queue
   } = useGlobalAudioPlayer();
 
   const [isMenuVisible, setIsMenuVisible] = useState(false);
@@ -83,6 +84,10 @@ export default function PlayerScreen({ navigation, route }) {
       { text: 'Equalizer', onPress: () => {} },
       { text: 'Cancel', style: 'cancel' }
     ]);
+  };
+
+  const handleNavigateToQueue = () => {
+    navigation.navigate("QueueScreen");
   };
 
   const handleWaveformSeek = (event) => {
@@ -138,9 +143,22 @@ export default function PlayerScreen({ navigation, route }) {
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={28} color="#000" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuButton} onPress={() => setIsMenuVisible(!isMenuVisible)}>
-          <Feather name="more-horizontal" size={24} color="#000" />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity 
+            style={styles.queueButton} 
+            onPress={handleNavigateToQueue}
+          >
+            <Ionicons name="list" size={24} color="#000" />
+            {queue.length > 0 && (
+              <View style={styles.queueBadge}>
+                <Text style={styles.queueBadgeText}>{queue.length}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuButton} onPress={() => setIsMenuVisible(!isMenuVisible)}>
+            <Feather name="more-horizontal" size={24} color="#000" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.logoContainer}>
@@ -242,10 +260,36 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 10,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   backButton: {
     padding: 8,
+  },
+  queueButton: {
+    padding: 8,
+    marginRight: 8,
+    position: 'relative',
+  },
+  queueBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#D32F2F',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  queueBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   menuButton: {
     padding: 8,
@@ -346,12 +390,12 @@ const styles = StyleSheet.create({
   volumeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 30,
     marginBottom: 20,
   },
   volumeSlider: {
     flex: 1,
-    height: 4,
+    height: 10,
     marginHorizontal: 10,
   },
   volumeIcon: {

@@ -8,6 +8,7 @@ import AuthNavigator from './navigation/AuthNavigator';
 import TabsNavigator from './navigation/TabsNavigator';
 import MainNavigator from './navigation/MainNavigator';
 import { AudioPlayerProvider } from './context/AudioPlayerContext';
+import 'react-native-gesture-handler';
 
 const Stack = createNativeStackNavigator();
 

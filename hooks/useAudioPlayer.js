@@ -7,7 +7,6 @@ const useAudioPlayer = ({
   defaultVolume = 1.0,
   persistPosition = true,
   staysActiveInBackground = true
-  
 } = {}) => {
   const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -19,11 +18,18 @@ const useAudioPlayer = ({
   const [isBuffering, setIsBuffering] = useState(false);
   const [error, setError] = useState(null);
 
+  // Queue management
+  const [queue, setQueue] = useState([]);
+  const [queueIndex, setQueueIndex] = useState(0);
+  const [isQueueLooping, setIsQueueLooping] = useState(false);
+  const [isShuffle, setIsShuffle] = useState(false);
+  const [shuffledQueue, setShuffledQueue] = useState([]);
+  const [currentPodcast, setCurrentPodcast] = useState(null);
+
   const soundRef = useRef(null);
   const positionRef = useRef(0);
   const durationRef = useRef(0);
   const audioSourceRef = useRef(null);
-  const [currentPodcast, setCurrentPodcast] = useState(null);
 
   const debugLog = (message, ...args) => {
     console.log(`[AudioPlayer Debug] ${message}`, ...args);
@@ -33,6 +39,17 @@ const useAudioPlayer = ({
     if (typeof src === 'string') return src;
     if (src?.uri) return src.uri;
     return 'local';
+  };
+
+  // Get active queue based on shuffle state
+  const getActiveQueue = () => {
+    return isShuffle ? shuffledQueue : queue;
+  };
+
+  // Get current item from queue
+  const getCurrentQueueItem = () => {
+    const activeQueue = getActiveQueue();
+    return activeQueue[queueIndex] || null;
   };
 
   useEffect(() => {
@@ -62,6 +79,22 @@ const useAudioPlayer = ({
     };
   }, []);
 
+  // Generate shuffled queue whenever original queue or shuffle status changes
+  useEffect(() => {
+    if (queue.length > 0 && isShuffle) {
+      const shuffled = [...queue].sort(() => Math.random() - 0.5);
+      // Make sure the current item stays at the current index
+      if (queueIndex < queue.length) {
+        const currentItem = queue[queueIndex];
+        const shuffledIndex = shuffled.findIndex(item => item.id === currentItem.id);
+        if (shuffledIndex !== -1) {
+          [shuffled[queueIndex], shuffled[shuffledIndex]] = [shuffled[shuffledIndex], shuffled[queueIndex]];
+        }
+      }
+      setShuffledQueue(shuffled);
+    }
+  }, [queue, isShuffle, queueIndex]);
+
   const onPlaybackStatusUpdate = async (status) => {
     if (!status.isLoaded) {
       debugLog('Playback error:', status.error);
@@ -77,7 +110,20 @@ const useAudioPlayer = ({
     if (status.didJustFinish) {
       setPosition(0);
       positionRef.current = 0;
-      setIsPlaying(false);
+      
+      // Handle queue playback
+      const activeQueue = getActiveQueue();
+      if (queueIndex < activeQueue.length - 1) {
+        // Play next track in queue
+        skipToNext();
+      } else if (isQueueLooping && activeQueue.length > 0) {
+        // Loop queue
+        setQueueIndex(0);
+        loadQueueItemAtIndex(0);
+      } else {
+        // End of queue, no looping
+        setIsPlaying(false);
+      }
 
       if (persistPosition && audioSourceRef.current) {
         const key = `@position_${getSourceKey(audioSourceRef.current)}`;
@@ -89,7 +135,7 @@ const useAudioPlayer = ({
     }
   };
 
-  const loadAudio = useCallback(async (newSource) => {
+  const loadAudio = useCallback(async (newSource, podcastInfo = null) => {
     if (!newSource) return;
 
     setIsLoading(true);
@@ -107,7 +153,7 @@ const useAudioPlayer = ({
         sourceObject,
         {
           shouldPlay: autoPlay,
-          volume: defaultVolume,
+          volume,
           rate: playbackSpeed,
           progressUpdateIntervalMillis: 500,
         },
@@ -124,7 +170,14 @@ const useAudioPlayer = ({
       positionRef.current = status.positionMillis || 0;
       setIsPlaying(status.isPlaying);
 
+      if (podcastInfo) {
+        setCurrentPodcast(podcastInfo);
+      }
+
       await AsyncStorage.setItem('@last_audio_source', JSON.stringify(newSource));
+      if (podcastInfo) {
+        await AsyncStorage.setItem('@last_podcast_info', JSON.stringify(podcastInfo));
+      }
 
       if (persistPosition) {
         const key = `@position_${getSourceKey(newSource)}`;
@@ -142,19 +195,169 @@ const useAudioPlayer = ({
     } finally {
       setIsLoading(false);
     }
-  }, [autoPlay, defaultVolume, playbackSpeed, persistPosition]);
+  }, [autoPlay, volume, playbackSpeed, persistPosition]);
+
+  // Load queue item at specific index
+  const loadQueueItemAtIndex = useCallback(async (index) => {
+    const activeQueue = getActiveQueue();
+    if (index >= 0 && index < activeQueue.length) {
+      const item = activeQueue[index];
+      await loadAudio(item.audioSource, item);
+      setQueueIndex(index);
+      return true;
+    }
+    return false;
+  }, [getActiveQueue, loadAudio]);
 
   const loadLastAudioSource = useCallback(async () => {
     try {
-      const saved = await AsyncStorage.getItem('@last_audio_source');
-      if (saved) {
-        const source = JSON.parse(saved);
-        await loadAudio(source);
+      const savedSource = await AsyncStorage.getItem('@last_audio_source');
+      const savedPodcastInfo = await AsyncStorage.getItem('@last_podcast_info');
+      
+      if (savedSource) {
+        const source = JSON.parse(savedSource);
+        const podcastInfo = savedPodcastInfo ? JSON.parse(savedPodcastInfo) : null;
+        await loadAudio(source, podcastInfo);
+      }
+      
+      // Load the last queue if available
+      const savedQueue = await AsyncStorage.getItem('@audio_queue');
+      const savedQueueIndex = await AsyncStorage.getItem('@queue_index');
+      
+      if (savedQueue) {
+        const parsedQueue = JSON.parse(savedQueue);
+        setQueue(parsedQueue);
+        
+        if (savedQueueIndex) {
+          setQueueIndex(parseInt(savedQueueIndex, 10));
+        }
       }
     } catch (err) {
       debugLog('Load last audio error:', err);
     }
   }, [loadAudio]);
+
+  // Queue management functions
+  const setQueueAndPlay = async (newQueue, startIndex = 0) => {
+    if (!newQueue || newQueue.length === 0) return;
+    
+    setQueue(newQueue);
+    setQueueIndex(startIndex);
+    await AsyncStorage.setItem('@audio_queue', JSON.stringify(newQueue));
+    await AsyncStorage.setItem('@queue_index', startIndex.toString());
+    
+    // Load and play the item at startIndex
+    await loadQueueItemAtIndex(startIndex);
+    if (soundRef.current) {
+      await soundRef.current.playAsync();
+    }
+  };
+
+  const addToQueue = async (item) => {
+    if (!item) return;
+    
+    const newQueue = [...queue, item];
+    setQueue(newQueue);
+    await AsyncStorage.setItem('@audio_queue', JSON.stringify(newQueue));
+    
+    // If this is the first item in the queue, load it
+    if (queue.length === 0) {
+      setQueueIndex(0);
+      await loadQueueItemAtIndex(0);
+    }
+  };
+
+  const addMultipleToQueue = async (items) => {
+    if (!items || items.length === 0) return;
+    
+    const newQueue = [...queue, ...items];
+    setQueue(newQueue);
+    await AsyncStorage.setItem('@audio_queue', JSON.stringify(newQueue));
+    
+    // If queue was empty before, load the first item
+    if (queue.length === 0) {
+      setQueueIndex(0);
+      await loadQueueItemAtIndex(0);
+    }
+  };
+
+  const removeFromQueue = async (index) => {
+    if (index < 0 || index >= queue.length) return;
+    
+    const newQueue = [...queue];
+    newQueue.splice(index, 1);
+    setQueue(newQueue);
+    await AsyncStorage.setItem('@audio_queue', JSON.stringify(newQueue));
+    
+    // Adjust current index if necessary
+    if (queueIndex > index || queueIndex >= newQueue.length) {
+      const newIndex = Math.max(0, queueIndex > index ? queueIndex - 1 : newQueue.length - 1);
+      setQueueIndex(newIndex);
+      await AsyncStorage.setItem('@queue_index', newIndex.toString());
+      
+      // If we're currently playing the removed item, play the new item at the adjusted index
+      if (queueIndex === index && newQueue.length > 0) {
+        await loadQueueItemAtIndex(newIndex);
+      }
+    }
+  };
+
+  const clearQueue = async () => {
+    setQueue([]);
+    setQueueIndex(0);
+    await AsyncStorage.removeItem('@audio_queue');
+    await AsyncStorage.removeItem('@queue_index');
+    
+    // If currently playing, stop playback
+    if (soundRef.current) {
+      await soundRef.current.stopAsync();
+    }
+  };
+
+  const skipToNext = async () => {
+    const activeQueue = getActiveQueue();
+    if (queueIndex < activeQueue.length - 1) {
+      const nextIndex = queueIndex + 1;
+      setQueueIndex(nextIndex);
+      await AsyncStorage.setItem('@queue_index', nextIndex.toString());
+      await loadQueueItemAtIndex(nextIndex);
+    } else if (isQueueLooping && activeQueue.length > 0) {
+      // Loop to the beginning of the queue
+      setQueueIndex(0);
+      await AsyncStorage.setItem('@queue_index', '0');
+      await loadQueueItemAtIndex(0);
+    }
+  };
+
+  const skipToPrevious = async () => {
+    // If we're more than 3 seconds into the track, go back to the start
+    if (position > 3000) {
+      await seekToPosition(0);
+      return;
+    }
+    
+    const activeQueue = getActiveQueue();
+    if (queueIndex > 0) {
+      const prevIndex = queueIndex - 1;
+      setQueueIndex(prevIndex);
+      await AsyncStorage.setItem('@queue_index', prevIndex.toString());
+      await loadQueueItemAtIndex(prevIndex);
+    } else if (isQueueLooping && activeQueue.length > 0) {
+      // Loop to the end of the queue
+      const lastIndex = activeQueue.length - 1;
+      setQueueIndex(lastIndex);
+      await AsyncStorage.setItem('@queue_index', lastIndex.toString());
+      await loadQueueItemAtIndex(lastIndex);
+    }
+  };
+
+  const toggleShuffle = () => {
+    setIsShuffle(!isShuffle);
+  };
+
+  const toggleQueueLooping = () => {
+    setIsQueueLooping(!isQueueLooping);
+  };
 
   const seekToPosition = async (newPosition) => {
     if (!soundRef.current) return;
@@ -173,9 +376,23 @@ const useAudioPlayer = ({
   };
 
   const playPause = async () => {
-    if (!soundRef.current) return;
+    if (!soundRef.current) {
+      // If no sound is loaded but we have a queue, try to load the current item
+      const activeQueue = getActiveQueue();
+      if (activeQueue.length > 0) {
+        await loadQueueItemAtIndex(queueIndex);
+        if (soundRef.current) {
+          await soundRef.current.playAsync();
+        }
+      }
+      return;
+    }
+    
     const status = await soundRef.current.getStatusAsync();
-    if (!status.isLoaded) return;
+    if (!status.isLoaded) {
+      debugLog("Sound not loaded in playPause");
+      return;
+    }
 
     if (isPlaying) {
       await soundRef.current.pauseAsync();
@@ -186,6 +403,16 @@ const useAudioPlayer = ({
         positionRef.current = 0;
       }
       await soundRef.current.playAsync();
+    }
+  };
+
+  const pause = async () => {
+    if (!soundRef.current) return;
+    const status = await soundRef.current.getStatusAsync();
+    if (!status.isLoaded) return;
+    
+    if (isPlaying) {
+      await soundRef.current.pauseAsync();
     }
   };
 
@@ -219,6 +446,7 @@ const useAudioPlayer = ({
     currentPodcast,
     setCurrentPodcast,
     playPause,
+    pause,
     seekToPosition,
     skipForward,
     skipBackward,
@@ -233,8 +461,23 @@ const useAudioPlayer = ({
     loadAudio,
     loadLastAudioSource,
     progress: duration > 0 ? (position / duration) * 100 : 0,
-
     audioSource: audioSourceRef.current,
+    
+    // Queue-related functions and state
+    queue,
+    queueIndex,
+    isQueueLooping,
+    isShuffle,
+    setQueueAndPlay,
+    addToQueue,
+    addMultipleToQueue,
+    removeFromQueue,
+    clearQueue,
+    skipToNext,
+    skipToPrevious,
+    toggleShuffle,
+    toggleQueueLooping,
+    getCurrentQueueItem
   };
 };
 
