@@ -1,10 +1,21 @@
-import React from "react";
+// navigation/TabsNavigator.js
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { View, StyleSheet, Platform } from "react-native";
+import { 
+  View, 
+  StyleSheet, 
+  Animated, 
+  Platform, 
+  BackHandler
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
+import { SCREEN_NAMES, TAB_CONFIG } from "./types";
+import { useTabAnalytics } from "../hooks/useTabAnalytics";
+import CustomTabBarButton from "../components/CustomTabBarButton";
 
+// Screen imports
 import HomeScreen from "../screens/Home/HomeScreen";
 import BrowseScreen from "../screens/Browse/BrowseScreen";
 import LibraryScreen from "../screens/Library/LibraryScreen";
@@ -13,18 +24,122 @@ import MiniPlayer from "../components/MiniPlayer";
 
 const Tab = createBottomTabNavigator();
 
-export default function TabsNavigator() {
-  const handleTabPress = () => {
-    Haptics.selectionAsync();
-  };
+// Component mapping
+const SCREEN_COMPONENTS = {
+  [SCREEN_NAMES.HOME]: HomeScreen,
+  [SCREEN_NAMES.BROWSE]: BrowseScreen,
+  [SCREEN_NAMES.LIBRARY]: LibraryScreen,
+  [SCREEN_NAMES.SEARCH]: SearchScreen,
+};
+
+// Main Tabs Navigator Component
+function TabsNavigator({ navigation }) {
+  const [currentTab, setCurrentTab] = useState(SCREEN_NAMES.HOME);
+  const [tabHistory, setTabHistory] = useState([SCREEN_NAMES.HOME]);
+  const [isTabBarVisible, setIsTabBarVisible] = useState(true);
+  const tabBarOpacity = useRef(new Animated.Value(1)).current;
+  const { logTabVisit } = useTabAnalytics();
+
+  // Tab bar visibility controls
+  const hideTabBar = useCallback(() => {
+    setIsTabBarVisible(false);
+    Animated.timing(tabBarOpacity, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [tabBarOpacity]);
+
+  const showTabBar = useCallback(() => {
+    setIsTabBarVisible(true);
+    Animated.timing(tabBarOpacity, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [tabBarOpacity]);
+
+  // Double tap to go to top functionality
+  const lastTapTime = useRef(0);
+  const handleDoubleTap = useCallback((tabName, navigation) => {
+    const now = Date.now();
+    if (now - lastTapTime.current < 300) {
+      if (tabName === currentTab) {
+        navigation.emit({
+          type: 'scrollToTop',
+          target: navigation.getState().key,
+        });
+      }
+    }
+    lastTapTime.current = now;
+  }, [currentTab]);
+
+  // Enhanced tab press handler
+  const handleTabPress = useCallback(async (tabName, navigation) => {
+    // Haptic feedback
+    if (tabName === currentTab) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    
+    // Log analytics
+    await logTabVisit(tabName);
+    
+    // Update tab history
+    setTabHistory(prev => {
+      const newHistory = prev.filter(tab => tab !== tabName);
+      return [tabName, ...newHistory].slice(0, 5);
+    });
+    
+    setCurrentTab(tabName);
+    handleDoubleTap(tabName, navigation);
+  }, [currentTab, logTabVisit, handleDoubleTap]);
+
+  // Long press functionality
+  const handleLongPress = useCallback((tabName) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    console.log(`Long pressed on ${tabName}`);
+    // Add custom long press actions here
+  }, []);
+
+  // Back button handling
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (tabHistory.length > 1) {
+        const previousTab = tabHistory[1];
+        // You can implement custom back navigation logic here
+        return true;
+      }
+      return false;
+    });
+
+    return () => backHandler.remove();
+  }, [tabHistory]);
+
+  // Render tab icon
+  const renderTabIcon = useCallback(({ focused, color, size }, tabConfig) => (
+    <View style={styles.customTabButton}>
+      <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
+        <Ionicons 
+          name={focused ? tabConfig.icon : tabConfig.iconOutline} 
+          color={focused ? "#FFFFFF" : "#807F7F"} 
+          size={26} 
+        />
+      </View>
+    </View>
+  ), []);
 
   return (
     <>
       <Tab.Navigator
-        initialRouteName="HomeScreen"
-        screenOptions={{
+        initialRouteName={SCREEN_NAMES.HOME}
+        screenOptions={({ route, navigation }) => ({
           headerShown: false,
-          tabBarStyle: styles.tabBar,
+          tabBarStyle: [
+            styles.tabBar,
+            { opacity: tabBarOpacity }
+          ],
           tabBarBackground: () => (
             <BlurView intensity={80} tint="dark" style={styles.blurBackground} />
           ),
@@ -32,85 +147,48 @@ export default function TabsNavigator() {
           tabBarInactiveTintColor: "#807F7F",
           tabBarLabelStyle: styles.tabLabel,
           tabBarShowLabel: false,
-        }}
+          tabBarHideOnKeyboard: Platform.OS === 'ios',
+        })}
       >
-        <Tab.Screen
-          name="HomeScreen"
-          component={HomeScreen}
-          options={{
-            tabBarLabel: "Home",
-            tabBarIcon: ({ color, size, focused }) => (
-              <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
-                <Ionicons 
-                  name="home" 
-                  color={focused ? "#FFFFFF" : "#807F7F"} 
-                  size={26} 
+        {TAB_CONFIG.map((tabConfig) => (
+          <Tab.Screen
+            key={tabConfig.name}
+            name={tabConfig.name}
+            component={SCREEN_COMPONENTS[tabConfig.name]}
+            options={{
+              tabBarLabel: tabConfig.label,
+              tabBarIcon: (props) => renderTabIcon(props, tabConfig),
+              tabBarButton: (props) => (
+                <CustomTabBarButton
+                  {...props}
+                  longPressEnabled={true}
+                  onLongPress={() => handleLongPress(tabConfig.name)}
                 />
-              </View>
-            ),
-          }}
-          listeners={{ tabPress: () => handleTabPress() }}
-        />
-        <Tab.Screen
-          name="BrowseScreen"
-          component={BrowseScreen}
-          options={{
-            tabBarLabel: "Browse",
-            tabBarIcon: ({ color, size, focused }) => (
-              <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
-                <Ionicons 
-                  name="grid" 
-                  color={focused ? "#FFFFFF" : "#807F7F"} 
-                  size={26} 
-                />
-              </View>
-            ),
-          }}
-          listeners={{ tabPress: () => handleTabPress() }}
-        />
-        <Tab.Screen
-          name="LibraryScreen"
-          component={LibraryScreen}
-          options={{
-            tabBarLabel: "Library",
-            tabBarIcon: ({ color, size, focused }) => (
-              <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
-                <Ionicons 
-                  name="library" 
-                  color={focused ? "#FFFFFF" : "#807F7F"} 
-                  size={26} 
-                />
-              </View>
-            ),
-          }}
-          listeners={{ tabPress: () => handleTabPress() }}
-        />
-        <Tab.Screen
-          name="SearchScreen"
-          component={SearchScreen}
-          options={{
-            tabBarLabel: "Search",
-            tabBarIcon: ({ color, size, focused }) => (
-              <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
-                <Ionicons 
-                  name="search" 
-                  color={focused ? "#FFFFFF" : "#807F7F"} 
-                  size={26} 
-                />
-              </View>
-            ),
-          }}
-          listeners={{ tabPress: () => handleTabPress() }}
-        />
+              ),
+            }}
+            listeners={({ navigation }) => ({
+              tabPress: (e) => {
+                handleTabPress(tabConfig.name, navigation);
+              }
+            })}
+          />
+        ))}
       </Tab.Navigator>
 
-      {/* MiniPlayer floating over tabs */}
-      <View style={styles.miniPlayerContainer}>
+      {/* MiniPlayer */}
+      <Animated.View 
+        style={[
+          styles.miniPlayerContainer,
+          { opacity: tabBarOpacity }
+        ]}
+      >
         <MiniPlayer />
-      </View>
+      </Animated.View>
     </>
   );
 }
+
+export default TabsNavigator;
 
 const styles = StyleSheet.create({
   miniPlayerContainer: {
@@ -134,7 +212,7 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    paddingBottom: 30,
+    paddingBottom: 0,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
@@ -167,5 +245,14 @@ const styles = StyleSheet.create({
   },
   activeIconContainer: {
     backgroundColor: "#9C3141",
+    shadowColor: "#9C3141",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  customTabButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

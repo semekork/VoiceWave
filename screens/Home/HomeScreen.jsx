@@ -4,6 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import useGreeting from '../../hooks/useGreeting';
 import { BlurView } from 'expo-blur';
+import { useNavigation } from '@react-navigation/native';
+import { useProfileImage } from '../../context/ProfileImageContext';
 
 // Mock data for podcasts
 const recommendedPodcasts = [
@@ -57,25 +59,29 @@ const selfImprovement = [
 
 export default function HomeScreen() {
   const { greeting } = useGreeting('');
+  const navigation = useNavigation();
+  
+  // Use the profile image context
+  const { getAvatarImage, profileImage } = useProfileImage();
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="auto" />
       
-        {/* Header */}
-        <BlurView intensity={70} tint='light' style={styles.header}>
-          <View>
-              <Text style={styles.heading}>{greeting}</Text>
-          </View>
-          <TouchableOpacity>
-            <Image 
-              source={require('../../assets/splash-icon.png')} 
-              style={styles.avatar} 
-            />
-          </TouchableOpacity>
-        </BlurView>
+      {/* Header */}
+      <BlurView intensity={70} tint='light' style={styles.header}>
+        <View>
+          <Text style={styles.heading}>{greeting}</Text>
+        </View>
+        <TouchableOpacity onPress={() => navigation.navigate('ProfileScreen')}>
+          <Image 
+            source={profileImage ? { uri: profileImage } : getAvatarImage()}
+            style={styles.avatar} 
+          />
+        </TouchableOpacity>
+      </BlurView>
 
-        <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false}>
         {/* Recommended For You Section */}
         <Text style={styles.sectionTitle}>Recommended For You</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recommendedScrollView}>
@@ -129,7 +135,6 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {
