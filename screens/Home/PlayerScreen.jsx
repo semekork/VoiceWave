@@ -11,13 +11,15 @@ import {
   Alert,
   Animated
 } from 'react-native';
-import Slider from '@react-native-community/slider';
 import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 
 import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext';
 import AudioPlayerMenu from '../../components/AudioPlayerMenu';
 import SleepTimer from '../../components/SleepTimer';
+import PlayerControls from '../../components/PlayerControls';
+import VolumeControls from '../../components/VolumeControls';
+import { MenuButtonContainer, FloatingMenuButton } from '../../components/MenuButton'; 
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -28,7 +30,6 @@ export default function PlayerScreen({ navigation, route }) {
     podcastImage,
   } = route.params || currentPodcast || {};
 
-  
   const {
     isPlaying,
     position,
@@ -44,7 +45,12 @@ export default function PlayerScreen({ navigation, route }) {
     formatTime,
     pause,
     currentPodcast,
-    queue
+    queue,
+    isShuffle,
+    toggleShuffle,
+    isQueueLooping,
+    toggleQueueLooping,
+    addToQueue
   } = useGlobalAudioPlayer();
 
   const [isMenuVisible, setIsMenuVisible] = useState(false);
@@ -63,6 +69,21 @@ export default function PlayerScreen({ navigation, route }) {
     }).start();
   }, [isMenuVisible]);
 
+  // Menu toggle handler
+  const handleMenuToggle = () => {
+    setIsMenuVisible(!isMenuVisible);
+  };
+
+  // Navigation handlers
+  const handleNavigateToQueue = () => {
+    navigation.navigate("QueueScreen");
+  };
+
+  const handleGoBack = () => {
+    navigation.goBack();
+  };
+
+  // Utility handlers
   const handleDownloadPodcast = async () => {
     Alert.alert('Download', 'Podcast download started');
   };
@@ -86,10 +107,7 @@ export default function PlayerScreen({ navigation, route }) {
     ]);
   };
 
-  const handleNavigateToQueue = () => {
-    navigation.navigate("QueueScreen");
-  };
-
+  // Waveform handlers
   const handleWaveformSeek = (event) => {
     if (!waveformRef.current) return;
 
@@ -139,89 +157,66 @@ export default function PlayerScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      
+      {/* Header with menu button */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
           <Ionicons name="chevron-back" size={28} color="#000" />
         </TouchableOpacity>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity 
-            style={styles.queueButton} 
-            onPress={handleNavigateToQueue}
-          >
-            <Ionicons name="list" size={24} color="#000" />
-            {queue.length > 0 && (
-              <View style={styles.queueBadge}>
-                <Text style={styles.queueBadgeText}>{queue.length}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuButton} onPress={() => setIsMenuVisible(!isMenuVisible)}>
-            <Feather name="more-horizontal" size={24} color="#000" />
-          </TouchableOpacity>
-        </View>
+        
+        <MenuButtonContainer
+          isMenuVisible={isMenuVisible}
+          onMenuToggle={handleMenuToggle}
+          showQueueButton={true}
+          queueCount={queue.length}
+          onQueuePress={handleNavigateToQueue}
+        />
       </View>
 
-      <View style={styles.logoContainer}>
-        <Image source={podcastImage} style={styles.logo} />
+      {/* Podcast Cover */}
+      <View style={styles.podcastCover}>
+        <Image source={podcastImage} style={styles.podcast} />
       </View>
 
+      {/* Podcast Info */}
       <View style={styles.infoContainer}>
         <Text style={styles.subTitle}>{podcastSubtitle}</Text>
         <Text style={styles.title}>{podcastTitle}</Text>
       </View>
 
+      {/* Waveform */}
       {generateWaveform()}
 
+      {/* Time Display */}
       <View style={styles.timeContainer}>
         <Text style={styles.timeText}>{formatTime(position)}</Text>
         <Text style={styles.timeText}>-{formatTime(duration - position)}</Text>
       </View>
 
-      <View style={styles.controlsContainer}>
-        <TouchableOpacity style={styles.speedButton} onPress={changePlaybackSpeed}>
-          <Text style={styles.speedText}>{playbackSpeed}x</Text>
-        </TouchableOpacity>
+      {/* Player Controls */}
+      <PlayerControls
+        isPlaying={isPlaying}
+        position={position}
+        duration={duration}
+        playbackSpeed={playbackSpeed}
+        onPlayPause={playPause}
+        onSkipBackward={() => skipBackward()}
+        onSkipForward={() => skipForward()}
+        onChangePlaybackSpeed={changePlaybackSpeed}
+        sleepTimerButton={sleepTimer.sleepTimerButton}
+      />
 
-        <TouchableOpacity style={styles.controlButton} onPress={() => skipBackward()}>
-          <Text style={styles.skipButtonText}>15</Text>
-        </TouchableOpacity>
+      {/* Volume Controls */}
+      <VolumeControls
+        volume={volume}
+        onVolumeChange={setVolume}
+      />
 
-        <TouchableOpacity style={styles.playButton} onPress={playPause}>
-          {position >= duration ? (
-            <Ionicons name="reload" size={36} color="#000" />
-          ) : isPlaying ? (
-            <Ionicons name="pause" size={36} color="#000" />
-          ) : (
-            <Ionicons name="play" size={36} color="#000" />
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.controlButton} onPress={() => skipForward()}>
-          <Text style={styles.skipButtonText}>30</Text>
-        </TouchableOpacity>
-
-        {sleepTimer.sleepTimerButton}
-      </View>
-
-      <View style={styles.volumeContainer}>
-        <Ionicons name="volume-mute-outline" size={20} style={styles.volumeIcon} />
-        <Slider
-          style={styles.volumeSlider}
-          minimumValue={0}
-          maximumValue={1}
-          value={volume}
-          onValueChange={setVolume}
-          minimumTrackTintColor="#000"
-          maximumTrackTintColor="#DDDDDD"
-          thumbTintColor="transparent"
-          thumbStyle={{ width: 0, height: 0 }}
-        />
-        <Ionicons name="volume-high-outline" size={20} style={styles.volumeIcon} />
-      </View>
-
+      {/* Sleep Timer Components */}
       {sleepTimer.sleepTimerDisplay}
       {sleepTimer.sleepTimerModal}
 
+      {/* Overlay Background */}
       <Animated.View
         style={[
           styles.overlayBackground,
@@ -238,13 +233,20 @@ export default function PlayerScreen({ navigation, route }) {
         />
       </Animated.View>
 
+      {/* Audio Player Menu */}
       <AudioPlayerMenu
         isVisible={isMenuVisible}
         onClose={() => setIsMenuVisible(false)}
-        onDownloadPodcast={handleDownloadPodcast}
-        onSharePodcast={handleSharePodcast}
-        onSleepTimer={() => sleepTimer.sleepTimerButton.props.onPress()}
-        onPlaybackSettings={handlePlaybackSettings}
+        navigation={navigation}
+        playbackSpeed={playbackSpeed}
+        changePlaybackSpeed={changePlaybackSpeed}
+        isShuffle={isShuffle}
+        toggleShuffle={toggleShuffle}
+        isQueueLooping={isQueueLooping}
+        toggleQueueLooping={toggleQueueLooping}
+        currentPodcast={currentPodcast}
+        addToQueue={addToQueue}
+        queue={queue}
       />
     </SafeAreaView>
   );
@@ -262,45 +264,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
   },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   backButton: {
     padding: 8,
   },
-  queueButton: {
-    padding: 8,
-    marginRight: 8,
-    position: 'relative',
-  },
-  queueBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: '#D32F2F',
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  queueBadgeText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  menuButton: {
-    padding: 8,
-  },
-  logoContainer: {
+  podcastCover: {
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 20,
     marginBottom: 20,
   },
-  logo: {
+  podcast: {
     width: SCREEN_WIDTH * 0.8,
     height: SCREEN_WIDTH * 0.8,
     borderRadius: 20,
@@ -342,63 +315,6 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 14,
-    color: '#666',
-  },
-  controlsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 40,
-  },
-  speedButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  speedText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  controlButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#DDDDDD',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  skipButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  playButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  volumeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 30,
-    marginBottom: 20,
-  },
-  volumeSlider: {
-    flex: 1,
-    height: 10,
-    marginHorizontal: 10,
-  },
-  volumeIcon: {
     color: '#666',
   },
   overlayBackground: {
