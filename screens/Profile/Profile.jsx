@@ -25,9 +25,9 @@ const { width, height } = Dimensions.get('window');
 
 const ProfileScreen = ({ navigation }) => {
   const [user, setUser] = useState({
-    name: 'Alex Johnson',
-    email: 'alex.johnson@email.com',
-    bio: 'Podcast enthusiast • Coffee lover • Tech geek',
+    name: 'Caleb Semekor',
+    email: 'caleb.dussey04@gmail.com',
+    bio: 'Podcast enthusiast • Car funatic • Tech geek',
     joinDate: 'March 2023',
     totalListeningTime: '124',
     favoriteGenres: ['Technology', 'Business', 'Science'],
