@@ -241,7 +241,7 @@ export default function QueueScreen({ navigation }) {
           </Text>
           <TouchableOpacity 
             style={styles.browseButton}
-            onPress={() => navigation.navigate("Main")}
+            onPress={() => navigation.navigate("BrowseScreen")}
           >
             <Text style={styles.browseButtonText}>Browse Podcasts</Text>
           </TouchableOpacity>
