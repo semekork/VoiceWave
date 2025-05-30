@@ -30,6 +30,9 @@ export const SCREEN_NAMES = {
     TERMS: 'TermsScreen',
     ABOUT: 'AboutScreen',
     NOTES: 'ReleaseNotes',
+
+    //  Details Screens
+    DETAILS: 'DetailsScreen',
   
   // Stack Names
   ONBOARDING_STACK: 'OnboardingStack',
