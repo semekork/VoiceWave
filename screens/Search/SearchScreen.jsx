@@ -18,103 +18,16 @@ import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext';
+import { trendingSearches, popularPodcasts } from '../../data/podcastData';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-// Enhanced educational and wellness categories
-const TRENDING_SEARCHES = [
-  'Science & Nature',
-  'History & Culture',
-  'Language Learning',
-  'Mental Health',
-  'Philosophy',
-  'Mathematics',
-  'Self Development',
-  'Health & Wellness',
-  'Psychology',
-  'Economics',
-  'Literature',
-  'Meditation'
-];
-
-const POPULAR_PODCASTS = [
-  {
-    id: '1',
-    title: 'Radiolab',
-    subtitle: 'WNYC Studios',
-    image: { uri: 'https://picsum.photos/200/200?random=1' },
-    category: 'Science & Nature',
-    rating: 4.9,
-    isSubscribed: false,
-    level: 'All Levels',
-    duration: '60 min avg',
-    description: 'Investigating the strange, wonderful, and complicated realities of our world',
-    episodeCount: 400,
-    tags: ['Science', 'Philosophy', 'Storytelling']
-  },
-  {
-    id: '2',
-    title: 'The Daily Meditation Podcast',
-    subtitle: 'Mary Meckley',
-    image: { uri: 'https://picsum.photos/200/200?random=2' },
-    category: 'Mental Wellness',
-    rating: 4.8,
-    isSubscribed: true,
-    level: 'Beginner',
-    duration: '10-20 min',
-    description: 'Daily guided meditations for inner peace and mindfulness',
-    episodeCount: 500,
-    tags: ['Meditation', 'Mindfulness', 'Wellness']
-  },
-  {
-    id: '3',
-    title: 'Hardcore History',
-    subtitle: 'Dan Carlin',
-    image: { uri: 'https://picsum.photos/200/200?random=3' },
-    category: 'History & Culture',
-    rating: 4.9,
-    isSubscribed: false,
-    level: 'Intermediate',
-    duration: '3-6 hours',
-    description: 'In-depth exploration of historical events and their impact',
-    episodeCount: 75,
-    tags: ['History', 'Education', 'Documentary']
-  },
-  {
-    id: '4',
-    title: 'Coffee Break Languages',
-    subtitle: 'Radio Lingua Network',
-    image: { uri: 'https://picsum.photos/200/200?random=4' },
-    category: 'Language Learning',
-    rating: 4.7,
-    isSubscribed: false,
-    level: 'All Levels',
-    duration: '15-30 min',
-    description: 'Learn languages in short, daily lessons',
-    episodeCount: 200,
-    tags: ['Languages', 'Education', 'Learning']
-  },
-  {
-    id: '5',
-    title: 'TED Talks Daily',
-    subtitle: 'TED',
-    image: { uri: 'https://picsum.photos/200/200?random=5' },
-    category: 'Self Development',
-    rating: 4.8,
-    isSubscribed: true,
-    level: 'All Levels',
-    duration: '5-18 min',
-    description: 'The best talks and performances from TED',
-    episodeCount: 2000,
-    tags: ['Ideas', 'Innovation', 'Inspiration']
-  }
-];
 
 export default function SearchScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
-  const [recentSearches, setRecentSearches] = useState(['Mindfulness', 'Physics', 'Spanish']);
+  const [recentSearches, setRecentSearches] = useState([]);
   const [searchHistory, setSearchHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
   const [isLoading, setIsLoading] = useState(false);
@@ -513,7 +426,7 @@ export default function SearchScreen({ navigation }) {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Trending Topics</Text>
                 <FlatList
-                  data={TRENDING_SEARCHES}
+                  data={trendingSearches}
                   renderItem={renderTrendingChip}
                   keyExtractor={(item) => item}
                   horizontal
@@ -549,7 +462,7 @@ export default function SearchScreen({ navigation }) {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Featured Educational Content</Text>
                 <FlatList
-                  data={POPULAR_PODCASTS}
+                  data={popularPodcasts}
                   renderItem={renderPopularPodcast}
                   keyExtractor={(item) => item.id}
                   horizontal
