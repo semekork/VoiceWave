@@ -26,6 +26,13 @@ const useAudioPlayer = ({
   const [shuffledQueue, setShuffledQueue] = useState([]);
   const [currentPodcast, setCurrentPodcast] = useState(null);
 
+  // Equalizer state
+  const [equalizerSettings, setEqualizerSettings] = useState({
+    enabled: false,
+    preset: 'Custom',
+    bands: [0, 0, 0, 0, 0, 0, 0, 0] // 8 frequency bands
+  });
+
   const soundRef = useRef(null);
   const positionRef = useRef(0);
   const durationRef = useRef(0);
@@ -39,6 +46,82 @@ const useAudioPlayer = ({
     if (typeof src === 'string') return src;
     if (src?.uri) return src.uri;
     return 'local';
+  };
+
+  // Load equalizer settings from storage
+  const loadEqualizerSettings = useCallback(async () => {
+    try {
+      const saved = await AsyncStorage.getItem('@equalizer_settings');
+      if (saved) {
+        const settings = JSON.parse(saved);
+        setEqualizerSettings(settings);
+        debugLog('Loaded equalizer settings:', settings);
+      }
+    } catch (err) {
+      debugLog('Error loading equalizer settings:', err);
+    }
+  }, []);
+
+  // Save equalizer settings to storage
+  const saveEqualizerSettings = useCallback(async (settings) => {
+    try {
+      await AsyncStorage.setItem('@equalizer_settings', JSON.stringify(settings));
+      debugLog('Saved equalizer settings:', settings);
+    } catch (err) {
+      debugLog('Error saving equalizer settings:', err);
+    }
+  }, []);
+
+  // Update equalizer settings
+  const updateEqualizerSettings = useCallback(async (newSettings) => {
+    setEqualizerSettings(newSettings);
+    await saveEqualizerSettings(newSettings);
+    
+    // Apply equalizer to current sound if available
+    if (soundRef.current && newSettings.enabled) {
+      await applyEqualizerToSound(soundRef.current, newSettings);
+    }
+  }, []);
+
+  // Apply equalizer settings to sound object
+  const applyEqualizerToSound = useCallback(async (soundObject, settings) => {
+    if (!soundObject || !settings.enabled) return;
+
+    try {
+      // Note: Expo Audio doesn't have built-in equalizer support
+      // This is a placeholder for where you would integrate with a native audio processing library
+      // For actual implementation, you would need to use:
+      // 1. react-native-audio-toolkit with equalizer support
+      // 2. Custom native modules
+      // 3. Web Audio API (for web platforms)
+      
+      debugLog('Applying equalizer settings:', settings);
+      
+      // Simulate equalizer application by adjusting volume based on preset
+      const volumeMultiplier = getVolumeMultiplierForPreset(settings.preset);
+      await soundObject.setVolumeAsync(volume * volumeMultiplier);
+      
+    } catch (err) {
+      debugLog('Error applying equalizer:', err);
+    }
+  }, [volume]);
+
+  // Get volume multiplier based on preset (simplified simulation)
+  const getVolumeMultiplierForPreset = (preset) => {
+    const multipliers = {
+      'Flat': 1.0,
+      'Rock': 1.1,
+      'Pop': 1.0,
+      'Jazz': 0.95,
+      'Classical': 0.9,
+      'Electronic': 1.15,
+      'Hip-Hop': 1.1,
+      'Vocal': 0.95,
+      'Bass Boost': 1.2,
+      'Treble Boost': 1.05,
+      'Custom': 1.0
+    };
+    return multipliers[preset] || 1.0;
   };
 
   // Get active queue based on shuffle state
@@ -63,6 +146,10 @@ const useAudioPlayer = ({
           allowsRecordingIOS: false,
         });
         await Audio.setIsEnabledAsync(true);
+        
+        // Load equalizer settings
+        await loadEqualizerSettings();
+        
         debugLog('Audio system initialized');
       } catch (err) {
         debugLog('Audio init error:', err);
@@ -77,7 +164,7 @@ const useAudioPlayer = ({
         soundRef.current.unloadAsync();
       }
     };
-  }, []);
+  }, [loadEqualizerSettings]);
 
   // Generate shuffled queue whenever original queue or shuffle status changes
   useEffect(() => {
@@ -174,6 +261,11 @@ const useAudioPlayer = ({
         setCurrentPodcast(podcastInfo);
       }
 
+      // Apply equalizer settings to the new sound
+      if (equalizerSettings.enabled) {
+        await applyEqualizerToSound(newSound, equalizerSettings);
+      }
+
       await AsyncStorage.setItem('@last_audio_source', JSON.stringify(newSource));
       if (podcastInfo) {
         await AsyncStorage.setItem('@last_podcast_info', JSON.stringify(podcastInfo));
@@ -195,7 +287,7 @@ const useAudioPlayer = ({
     } finally {
       setIsLoading(false);
     }
-  }, [autoPlay, volume, playbackSpeed, persistPosition]);
+  }, [autoPlay, volume, playbackSpeed, persistPosition, equalizerSettings, applyEqualizerToSound]);
 
   // Load queue item at specific index
   const loadQueueItemAtIndex = useCallback(async (index) => {
@@ -477,7 +569,9 @@ const useAudioPlayer = ({
     skipToPrevious,
     toggleShuffle,
     toggleQueueLooping,
-    getCurrentQueueItem
+    getCurrentQueueItem,
+    equalizerSettings,
+    updateEqualizerSettings,
   };
 };
 
