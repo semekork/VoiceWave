@@ -15,11 +15,12 @@ import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 
 import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext';
-import AudioPlayerMenu from '../../components/AudioPlayerMenu';
+import AudioPlayerMenu from '../../components/AudioPlayerOptions';
 import SleepTimer from '../../components/SleepTimer';
 import PlayerControls from '../../components/PlayerControls';
 import VolumeControls from '../../components/VolumeControls';
-import { MenuButtonContainer, FloatingMenuButton } from '../../components/MenuButton'; 
+import WaveformPlayer from '../../components/WaveformPlayer';
+import { MenuButtonContainer } from '../../components/PlayerMenuButton'; 
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -54,8 +55,10 @@ export default function PlayerScreen({ navigation, route }) {
   } = useGlobalAudioPlayer();
 
   const [isMenuVisible, setIsMenuVisible] = useState(false);
-  const waveformRef = useRef(null);
   const menuAnimation = useRef(new Animated.Value(0)).current;
+  
+  // Animation values for podcast cover
+  const pulseAnimation = useRef(new Animated.Value(1)).current;
 
   const sleepTimer = SleepTimer({
     onPauseAudio: () => pause()
@@ -68,6 +71,30 @@ export default function PlayerScreen({ navigation, route }) {
       useNativeDriver: true,
     }).start();
   }, [isMenuVisible]);
+
+  // Podcast cover scale animation based on play/pause state
+  useEffect(() => {
+    if (isPlaying) {
+      // Scale up when playing
+      Animated.timing(pulseAnimation, {
+        toValue: 1.05,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Scale back to default when paused
+      Animated.timing(pulseAnimation, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isPlaying]);
+
+  // Cover press handler (optional - can be removed if you don't want tap functionality)
+  const handleCoverPress = () => {
+    playPause();
+  };
 
   // Menu toggle handler
   const handleMenuToggle = () => {
@@ -107,53 +134,6 @@ export default function PlayerScreen({ navigation, route }) {
     ]);
   };
 
-  // Waveform handlers
-  const handleWaveformSeek = (event) => {
-    if (!waveformRef.current) return;
-
-    const { locationX } = event.nativeEvent;
-    const waveformWidth = SCREEN_WIDTH - 40;
-    const seekPercentage = locationX / waveformWidth;
-    const newPosition = Math.floor(seekPercentage * duration);
-
-    seekToPosition(newPosition);
-  };
-
-  const generateWaveform = () => {
-    const barCount = 40;
-    const isAtEnd = position >= duration || (duration > 0 && Math.abs(position - duration) < 1000);
-    const played = isAtEnd ? barCount : Math.floor((position / duration) * barCount);
-
-    return (
-      <TouchableOpacity
-        ref={waveformRef}
-        style={styles.waveformContainer}
-        onPress={handleWaveformSeek}
-        activeOpacity={1}
-      >
-        {Array.from({ length: barCount }).map((_, index) => {
-          const opacityFactor = 1 - (Math.abs(index - played) / barCount);
-          const backgroundColor = index < played ? '#D32F2F' : '#AAAAAA';
-          const opacity = index < played ? Math.max(0.3, opacityFactor) : 0.6;
-
-          return (
-            <View
-              key={index}
-              style={[
-                styles.waveformBar,
-                {
-                  height: 30,
-                  backgroundColor,
-                  opacity,
-                }
-              ]}
-            />
-          );
-        })}
-      </TouchableOpacity>
-    );
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -173,9 +153,25 @@ export default function PlayerScreen({ navigation, route }) {
         />
       </View>
 
-      {/* Podcast Cover */}
+      {/* Animated Podcast Cover */}
       <View style={styles.podcastCover}>
-        <Image source={podcastImage} style={styles.podcast} />
+        <TouchableOpacity 
+          onPress={handleCoverPress}
+          activeOpacity={0.8}
+        >
+          <Animated.View
+            style={[
+              styles.coverContainer,
+              {
+                transform: [
+                  { scale: pulseAnimation },
+                ],
+              },
+            ]}
+          >
+            <Image source={podcastImage} style={styles.podcast} />
+          </Animated.View>
+        </TouchableOpacity>
       </View>
 
       {/* Podcast Info */}
@@ -185,7 +181,11 @@ export default function PlayerScreen({ navigation, route }) {
       </View>
 
       {/* Waveform */}
-      {generateWaveform()}
+      <WaveformPlayer
+        position={position}
+        duration={duration}
+        onSeek={seekToPosition}
+      />
 
       {/* Time Display */}
       <View style={styles.timeContainer}>
@@ -273,6 +273,16 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 20,
   },
+  coverContainer: {
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 15,
+  },
   podcast: {
     width: SCREEN_WIDTH * 0.8,
     height: SCREEN_WIDTH * 0.8,
@@ -292,20 +302,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     paddingHorizontal: 40,
-  },
-  waveformContainer: {
-    flexDirection: 'row',
-    height: 60,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginBottom: 10,
-  },
-  waveformBar: {
-    width: 3,
-    backgroundColor: '#AAA',
-    borderRadius: 1.5,
-    marginHorizontal: 1,
   },
   timeContainer: {
     flexDirection: 'row',
