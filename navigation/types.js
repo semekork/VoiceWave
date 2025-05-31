@@ -21,6 +21,7 @@ export const SCREEN_NAMES = {
   PLAYER: 'PlayerScreen',
   QUEUE: 'QueueScreen',
   SETTINGS: 'SettingsScreen',
+  EQUALIZER: 'EqualizerScreen',
 
   //Profile Screens
     EDIT_PROFILE: 'EditProfileScreen',
@@ -32,7 +33,7 @@ export const SCREEN_NAMES = {
     NOTES: 'ReleaseNotes',
 
     //  Details Screens
-    DETAILS: 'DetailsScreen',
+    DETAILS: 'PodcastDetailsScreen',
   
   // Stack Names
   ONBOARDING_STACK: 'OnboardingStack',
