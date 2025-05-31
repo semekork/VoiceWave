@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, Image, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView, ScrollView, Image, TouchableOpacity, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import useGreeting from '../../hooks/useGreeting';
@@ -10,12 +10,7 @@ import { topEpisodes,newEpisodes,youMightLike,featuredCollections,recentlyPlayed
 
 
 export default function HomeScreen() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
   const [subscribedPodcasts, setSubscribedPodcasts] = useState(new Set());
-  const [showPodcastModal, setShowPodcastModal] = useState(false);
-  const [selectedPodcast, setSelectedPodcast] = useState(null);
-  const [filteredPodcasts, setFilteredPodcasts] = useState([]);
 
   const { greeting } = useGreeting('');
   const navigation = useNavigation();
@@ -26,21 +21,6 @@ export default function HomeScreen() {
     const initialSubscriptions = new Set();
     setSubscribedPodcasts(initialSubscriptions);
   }, []);
-
-  useEffect(() => {
-    if (searchQuery.trim()) {
-      const allPodcasts = [
-        ...youMightLike
-      ];
-      const filtered = allPodcasts.filter(podcast =>
-        podcast.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        podcast.host.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setFilteredPodcasts(filtered);
-    } else {
-      setFilteredPodcasts([]);
-    }
-  }, [searchQuery]);
 
   const toggleSubscription = (podcastId) => {
     const newSubscribed = new Set(subscribedPodcasts);
@@ -54,9 +34,8 @@ export default function HomeScreen() {
     setSubscribedPodcasts(newSubscribed);
   };
 
-  const openPodcastDetails = (podcast) => {
-    setSelectedPodcast(podcast);
-    setShowPodcastModal(true);
+  const navigateToPodcastDetails = (podcast) => {
+    navigation.navigate('PodcastDetailsScreen', { podcast });
   };
 
   const playPodcast = (podcast) => {
@@ -116,7 +95,7 @@ export default function HomeScreen() {
     <TouchableOpacity 
       key={podcast.id} 
       style={styles.newNoteworthyCard}
-      onPress={() => openPodcastDetails(podcast)}
+      onPress={() => navigateToPodcastDetails(podcast)}
     >
       <View style={[styles.cardGradient, { backgroundColor: podcast.gradient[0] }]}>
         {podcast.isNew && (
@@ -157,7 +136,7 @@ export default function HomeScreen() {
     <TouchableOpacity 
       key={podcast.id} 
       style={styles.suggestionItem}
-      onPress={() => openPodcastDetails(podcast)}
+      onPress={() => navigateToPodcastDetails(podcast)}
     >
       <Image source={podcast.image} style={styles.suggestionImage} />
       <View style={styles.suggestionContent}>
@@ -203,7 +182,7 @@ export default function HomeScreen() {
     <TouchableOpacity 
       key={show.id} 
       style={styles.followedItem}
-      onPress={() => openPodcastDetails(show)}
+      onPress={() => navigateToPodcastDetails(show)}
     >
       <Image source={show.image} style={styles.followedImage} />
       <View style={styles.followedContent}>
@@ -245,23 +224,6 @@ export default function HomeScreen() {
     </TouchableOpacity>
   );
 
-  const renderSearchResult = (podcast) => (
-    <TouchableOpacity 
-      key={podcast.id} 
-      style={styles.searchResultItem}
-      onPress={() => openPodcastDetails(podcast)}
-    >
-      <Image source={podcast.image} style={styles.searchResultImage} />
-      <View style={styles.searchResultContent}>
-        <Text style={styles.searchResultTitle}>{podcast.title}</Text>
-        <Text style={styles.searchResultHost}>{podcast.host}</Text>
-      </View>
-      <TouchableOpacity onPress={() => playPodcast(podcast)}>
-        <Ionicons name="play-circle-outline" size={32} color="#9C3141" />
-      </TouchableOpacity>
-    </TouchableOpacity>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
@@ -269,27 +231,8 @@ export default function HomeScreen() {
       {/* Header */}
       <BlurView intensity={95} tint="extraLight" style={styles.header}>
         <View style={styles.headerContent}>
-          {showSearch ? (
-            <View style={styles.searchContainer}>
-              <Ionicons name="search" size={20} color="#8E8E93" style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search podcasts..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoFocus
-              />
-              <TouchableOpacity onPress={() => {setShowSearch(false); setSearchQuery('');}}>
-                <Ionicons name="close" size={20} color="#8E8E93" />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <>
               <Text style={styles.heading}>{greeting}</Text>
               <View style={styles.headerActions}>
-                <TouchableOpacity onPress={() => setShowSearch(true)} style={styles.searchButton}>
-                  <Ionicons name="search" size={24} color="#9C3141" />
-                </TouchableOpacity>
                 <TouchableOpacity onPress={() => navigation.navigate('ProfileScreen')}>
                   <Image 
                     source={profileImage ? { uri: profileImage } : getAvatarImage()}
@@ -297,26 +240,12 @@ export default function HomeScreen() {
                   />
                 </TouchableOpacity>
               </View>
-            </>
-          )}
         </View>
       </BlurView>
 
       <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
-        {/* Search Results */}
-        {searchQuery.trim() && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Search Results</Text>
-            {filteredPodcasts.length > 0 ? (
-              filteredPodcasts.map(renderSearchResult)
-            ) : (
-              <Text style={styles.noResultsText}>No podcasts found</Text>
-            )}
-          </View>
-        )}
 
         {/* Top Episodes */}
-        {!searchQuery.trim() && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Top Episodes</Text>
@@ -326,30 +255,24 @@ export default function HomeScreen() {
             </View>
             {topEpisodes.map(renderTopEpisodeItem)}
           </View>
-        )}
 
         {/* New & Noteworthy */}
-        {!searchQuery.trim() && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>New & Noteworthy</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
               {newNoteworthy.map(renderNewNoteworthyCard)}
             </ScrollView>
           </View>
-        )}
 
         {/* Featured Collections */}
-        {!searchQuery.trim() && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Featured Collections</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
               {featuredCollections.map(renderCollectionCard)}
             </ScrollView>
           </View>
-        )}
 
         {/* You Might Like */}
-        {!searchQuery.trim() && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>You Might Like</Text>
@@ -359,10 +282,8 @@ export default function HomeScreen() {
             </View>
             {youMightLike.map(renderYouMightLikeItem)}
           </View>
-        )}
 
         {/* Recently Played */}
-        {!searchQuery.trim() && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recently Played</Text>
@@ -372,10 +293,8 @@ export default function HomeScreen() {
             </View>
             {recentlyPlayed.map(renderRecentlyPlayedItem)}
           </View>
-        )}
 
         {/* Shows You Follow */}
-        {!searchQuery.trim() && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Shows You Follow</Text>
@@ -385,10 +304,8 @@ export default function HomeScreen() {
             </View>
             {showsYouFollow.map(renderFollowedShowItem)}
           </View>
-        )}
 
         {/* New Episodes */}
-        {!searchQuery.trim() && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>New Episodes</Text>
@@ -398,70 +315,10 @@ export default function HomeScreen() {
             </View>
             {newEpisodes.map(renderNewEpisodeItem)}
           </View>
-        )}
 
         {/* Bottom spacing */}
         <View style={styles.bottomPadding} />
       </ScrollView>
-
-      {/* Podcast Details Modal */}
-      <Modal
-        visible={showPodcastModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        {selectedPodcast && (
-          <SafeAreaView style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setShowPodcastModal(false)}>
-                <Ionicons name="close" size={24} color="#000" />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>Podcast Details</Text>
-              <View style={styles.modalHeaderSpacer} />
-            </View>
-            
-            <ScrollView style={styles.modalContent}>
-              <Image source={selectedPodcast.image} style={styles.modalImage} />
-              <Text style={styles.modalPodcastTitle}>{selectedPodcast.title}</Text>
-              <Text style={styles.modalPodcastHost}>by {selectedPodcast.host}</Text>
-              
-              <View style={styles.modalRating}>
-                {renderStars(selectedPodcast.rating)}
-                <Text style={styles.modalRatingText}>{selectedPodcast.rating} stars</Text>
-              </View>
-              
-              <Text style={styles.modalDescription}>{selectedPodcast.subtitle}</Text>
-              
-              <View style={styles.modalActions}>
-                <TouchableOpacity 
-                  style={styles.modalPlayButton}
-                  onPress={() => {
-                    playPodcast(selectedPodcast);
-                    setShowPodcastModal(false);
-                  }}
-                >
-                  <Ionicons name="play" size={20} color="#fff" />
-                  <Text style={styles.modalPlayText}>Play Latest</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[styles.modalSubscribeButton, { backgroundColor: subscribedPodcasts.has(selectedPodcast.id) ? '#9C3141' : '#F2F2F7' }]}
-                  onPress={() => toggleSubscription(selectedPodcast.id)}
-                >
-                  <Ionicons 
-                    name={subscribedPodcasts.has(selectedPodcast.id) ? "checkmark" : "add"} 
-                    size={20} 
-                    color={subscribedPodcasts.has(selectedPodcast.id) ? "#fff" : "#9C3141"} 
-                  />
-                  <Text style={[styles.modalSubscribeText, { color: subscribedPodcasts.has(selectedPodcast.id) ? "#fff" : "#9C3141" }]}>
-                    {subscribedPodcasts.has(selectedPodcast.id) ? 'Subscribed' : 'Subscribe'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </SafeAreaView>
-        )}
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -492,27 +349,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-  },
-  searchButton: {
-    padding: 4,
-  },
-  searchContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginHorizontal: -10,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#000',
   },
   avatar: {
     width: 36,
@@ -548,7 +384,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   
-  // Top Shows Styles
   topShowItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -624,8 +459,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  
-  // Episode Styles
+
   episodeItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -680,7 +514,6 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
   },
   
-  // New & Noteworthy Styles
   newNoteworthyCard: {
     width: 200,
     marginRight: 16,
@@ -725,8 +558,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     marginLeft: 4,
   },
-  
-  // Collection Styles
+
   collectionCard: {
     width: 160,
     borderRadius: 16,
@@ -869,8 +701,7 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     minWidth: 30,
   },
-  
-  // Followed Shows Styles
+
   followedItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -922,8 +753,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  
-  // New Episodes Styles
   newEpisodeItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -969,48 +798,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8E8E93',
   },
-  
-  // Search Results Styles
-  searchResultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  searchResultImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  searchResultContent: {
-    flex: 1,
-  },
-  searchResultTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 4,
-  },
-  searchResultHost: {
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  noResultsText: {
-    fontSize: 16,
-    color: '#8E8E93',
-    textAlign: 'center',
-    marginVertical: 32,
-  },
-  
-  // Badge Styles
   newBadge: {
     backgroundColor: '#FF3B30',
     borderRadius: 8,
@@ -1026,107 +813,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
-  
-  // Modal Styles
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#F2F2F7',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
-    backgroundColor: '#fff',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-  },
-  modalHeaderSpacer: {
-    width: 24,
-  },
-  modalContent: {
-    flex: 1,
-    padding: 20,
-  },
-  modalImage: {
-    width: 200,
-    height: 200,
-    borderRadius: 16,
-    alignSelf: 'center',
-    marginBottom: 24,
-  },
-  modalPodcastTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  modalPodcastHost: {
-    fontSize: 16,
-    color: '#8E8E93',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  modalRating: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 24,
-  },
-  modalRatingText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginLeft: 8,
-  },
-  modalDescription: {
-    fontSize: 16,
-    color: '#000',
-    lineHeight: 24,
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  modalPlayButton: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#9C3141',
-    borderRadius: 12,
-    paddingVertical: 16,
-    gap: 8,
-  },
-  modalPlayText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  modalSubscribeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 12,
-    paddingVertical: 16,
-    gap: 8,
-  },
-  modalSubscribeText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  
-  // Bottom Padding
   bottomPadding: {
     height: 100,
   },
