@@ -15,7 +15,8 @@ import SupportScreen from "../screens/Profile/SupportScreen";
 import TermsScreen from "../screens/Profile/TermsScreen";
 import AboutScreen from "../screens/Profile/AboutScreen";
 import ReleaseNotes from "../screens/Profile/ReleaseNotes";
-import DetailScreen from "../screens/Details/DetailScreen";
+import PodcastDetailScreen from "../screens/Details/PodcastDetailsScreen";
+import EqualizerScreen from "../components/Equalizer";
 
 const Stack = createNativeStackNavigator();
 
@@ -92,6 +93,24 @@ const MainNavigator = () => {
             animation: 'slide_from_bottom',
           }}
         />
+        <Stack.Screen 
+          name={SCREEN_NAMES.TERMS} 
+          component={TermsScreen}
+          options={{
+            presentation: 'modal',
+            gestureDirection: 'vertical',
+            animation: 'slide_from_bottom',
+          }}
+        />
+        <Stack.Screen
+          name={SCREEN_NAMES.DETAILS} 
+          component={PodcastDetailScreen}
+          options={{
+            presentation: 'modal',
+            gestureDirection: 'vertical',
+            animation: 'slide_from_bottom',
+          }}
+        />
         <Stack.Screen
           name={SCREEN_NAMES.NOTES}
           component={ReleaseNotes}
@@ -121,21 +140,11 @@ const MainNavigator = () => {
           }}
         />
         <Stack.Screen 
-          name={SCREEN_NAMES.TERMS} 
-          component={TermsScreen}
+          name={SCREEN_NAMES.EQUALIZER} 
+          component={EqualizerScreen}
           options={{
-            presentation: 'modal',
-            gestureDirection: 'vertical',
             animation: 'slide_from_bottom',
-          }}
-        />
-        <Stack.Screen
-          name={SCREEN_NAMES.DETAILS} 
-          component={DetailScreen}
-          options={{
-            presentation: 'modal',
             gestureDirection: 'vertical',
-            animation: 'slide_from_bottom',
           }}
         />
       </Stack.Group>
