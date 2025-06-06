@@ -6,44 +6,131 @@ import useGreeting from '../../hooks/useGreeting';
 import { BlurView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
 import { useProfileImage } from '../../context/ProfileImageContext';
-import { topEpisodes,newEpisodes,youMightLike,featuredCollections,recentlyPlayed,showsYouFollow,newNoteworthy } from '../../data/podcastData';
-
+import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext';
+import { SCREEN_NAMES } from '../../navigation/types'; 
+import { 
+  podcasts, 
+  episodes, 
+  collections,
+  getTrendingEpisodes,
+  getNewEpisodes,
+  getRecentEpisodes,
+  getInProgressEpisodes,
+  getSubscribedPodcasts,
+  getCategoryRecommendations,
+  toggleSubscription as togglePodcastSubscription,
+  setCurrentlyPlaying,
+  formatDuration,
+  formatPublishedDate
+} from '../../constants/podcastData';
 
 export default function HomeScreen() {
   const [subscribedPodcasts, setSubscribedPodcasts] = useState(new Set());
-
+  
   const { greeting } = useGreeting('');
   const navigation = useNavigation();
   const { getAvatarImage, profileImage } = useProfileImage();
+  
+  // Add audio player context
+  const {
+    loadAudio,
+    setCurrentPodcast,
+    playPause,
+    isPlaying,
+    audioSource,
+    sound
+  } = useGlobalAudioPlayer();
 
   useEffect(() => {
-    // Initialize subscribed podcasts
-    const initialSubscriptions = new Set();
+    // Initialize subscribed podcasts from data
+    const initialSubscriptions = new Set(
+      getSubscribedPodcasts().map(podcast => podcast.id)
+    );
     setSubscribedPodcasts(initialSubscriptions);
   }, []);
 
   const toggleSubscription = (podcastId) => {
+    const isCurrentlySubscribed = subscribedPodcasts.has(podcastId);
     const newSubscribed = new Set(subscribedPodcasts);
-    if (newSubscribed.has(podcastId)) {
+    
+    if (isCurrentlySubscribed) {
       newSubscribed.delete(podcastId);
       Alert.alert('Unsubscribed', 'You have unsubscribed from this podcast');
     } else {
       newSubscribed.add(podcastId);
       Alert.alert('Subscribed!', 'You are now subscribed to this podcast');
     }
+    
     setSubscribedPodcasts(newSubscribed);
+    // Update the main data
+    togglePodcastSubscription(podcastId);
   };
 
+  // Fixed navigation function with proper screen name
   const navigateToPodcastDetails = (podcast) => {
-    navigation.navigate('PodcastDetailsScreen', { podcast });
+    try {
+      // Ensure we have a valid podcast object
+      if (!podcast || !podcast.id) {
+        Alert.alert('Error', 'Unable to load podcast details');
+        return;
+      }
+
+      // Navigate using the correct screen name from SCREEN_NAMES
+      navigation.navigate(SCREEN_NAMES.DETAILS, { 
+        podcast: {
+          ...podcast,
+          // Ensure we have all required fields for the detail screen
+          host: podcast.author || podcast.host,
+          subtitle: podcast.subtitle || podcast.author,
+          description: podcast.description || `${podcast.title} is a great podcast`,
+          category: podcast.category || 'Entertainment',
+          rating: podcast.rating || 4.5,
+          totalEpisodes: podcast.episodeCount || 10
+        }
+      });
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Error', 'Unable to navigate to podcast details');
+    }
   };
 
   const playPodcast = (podcast) => {
     Alert.alert('Playing', `Now playing: ${podcast.title}`);
   };
 
-  const playEpisode = (episode) => {
-    Alert.alert('Playing Episode', `Now playing: ${episode.title}`);
+  // Updated playEpisode function to integrate with MiniPlayer
+  const playEpisode = async (episode) => {
+    try {
+      // Create a podcast object from the episode data for the audio player
+      const podcastForPlayer = {
+        id: episode.id,
+        title: episode.title,
+        author: episode.author,
+        image: episode.image,
+        audioSource: episode.audioSource || episode.audio || `https://example.com/audio/${episode.id}.mp3`, // Fallback audio URL
+        subtitle: episode.subtitle || episode.description,
+        description: episode.description || `Episode: ${episode.title}`,
+        duration: episode.duration,
+        publishedDate: episode.publishedDate
+      };
+
+      // Load the audio and set current podcast
+      await loadAudio(podcastForPlayer.audioSource);
+      setCurrentPodcast(podcastForPlayer);
+      
+      // Update the currently playing episode ID in your data
+      setCurrentlyPlaying(episode.id);
+      
+      // Start playing
+      if (sound) {
+        playPause();
+      }
+      
+      console.log('Now playing episode:', episode.title);
+    } catch (error) {
+      console.error('Error playing episode:', error);
+      Alert.alert('Error', 'Unable to play episode');
+    }
   };
 
   const renderStars = (rating) => {
@@ -73,11 +160,11 @@ export default function HomeScreen() {
       <Image source={episode.image} style={styles.episodeImage} />
       <View style={styles.episodeContent}>
         <Text style={styles.episodeTitle} numberOfLines={2}>{episode.title}</Text>
-        <Text style={styles.episodePodcast} numberOfLines={1}>{episode.podcastTitle}</Text>
+        <Text style={styles.episodePodcast} numberOfLines={1}>{episode.author}</Text>
         <View style={styles.episodeMeta}>
-          <Text style={styles.episodeDuration}>{episode.duration}</Text>
-          <Text style={styles.episodePlays}>{episode.plays} plays</Text>
-          <Text style={styles.episodeDate}>{episode.publishedDate}</Text>
+          <Text style={styles.episodeDuration}>{formatDuration(episode.duration)}</Text>
+          <Text style={styles.episodePlays}>{episode.metadata?.plays || '0'} plays</Text>
+          <Text style={styles.episodeDate}>{formatPublishedDate(episode.publishedDate)}</Text>
         </View>
       </View>
       {episode.isNew && (
@@ -97,7 +184,7 @@ export default function HomeScreen() {
       style={styles.newNoteworthyCard}
       onPress={() => navigateToPodcastDetails(podcast)}
     >
-      <View style={[styles.cardGradient, { backgroundColor: podcast.gradient[0] }]}>
+      <View style={[styles.cardGradient, { backgroundColor: '#9C3141' }]}>
         {podcast.isNew && (
           <View style={styles.newBadge}>
             <Text style={styles.newBadgeText}>NEW</Text>
@@ -106,11 +193,11 @@ export default function HomeScreen() {
         <Image source={podcast.image} style={styles.cardImage} />
         <View style={styles.cardContent}>
           <Text style={styles.cardTitle}>{podcast.title}</Text>
-          <Text style={styles.cardSubtitle}>{podcast.subtitle}</Text>
-          <Text style={styles.cardHost}>{podcast.host}</Text>
+          <Text style={styles.cardSubtitle}>{podcast.subtitle || podcast.description}</Text>
+          <Text style={styles.cardHost}>{podcast.author}</Text>
           <View style={styles.cardRating}>
-            {renderStars(podcast.rating)}
-            <Text style={styles.cardRatingText}>{podcast.rating}</Text>
+            {podcast.rating && renderStars(podcast.rating)}
+            <Text style={styles.cardRatingText}>{podcast.rating || 'N/A'}</Text>
           </View>
         </View>
       </View>
@@ -141,11 +228,11 @@ export default function HomeScreen() {
       <Image source={podcast.image} style={styles.suggestionImage} />
       <View style={styles.suggestionContent}>
         <Text style={styles.suggestionTitle}>{podcast.title}</Text>
-        <Text style={styles.suggestionHost}>{podcast.host}</Text>
-        <Text style={styles.suggestionReason}>{podcast.reason}</Text>
+        <Text style={styles.suggestionHost}>{podcast.author}</Text>
+        <Text style={styles.suggestionReason}>Based on your interests</Text>
         <View style={styles.suggestionRating}>
-          {renderStars(podcast.rating)}
-          <Text style={styles.suggestionRatingText}>{podcast.rating}</Text>
+          {podcast.rating && renderStars(podcast.rating)}
+          <Text style={styles.suggestionRatingText}>{podcast.rating || 'N/A'}</Text>
         </View>
       </View>
       <TouchableOpacity onPress={() => playPodcast(podcast)}>
@@ -154,45 +241,45 @@ export default function HomeScreen() {
     </TouchableOpacity>
   );
 
-  const renderRecentlyPlayedItem = (item) => (
+  const renderRecentlyPlayedItem = (episode) => (
     <TouchableOpacity 
-      key={item.id} 
+      key={episode.id} 
       style={styles.recentItem}
-      onPress={() => playEpisode(item)}
+      onPress={() => playEpisode(episode)}
     >
-      <Image source={item.image} style={styles.recentImage} />
+      <Image source={episode.image} style={styles.recentImage} />
       <View style={styles.recentContent}>
-        <Text style={styles.recentTitle}>{item.title}</Text>
-        <Text style={styles.recentPodcast}>{item.podcastTitle}</Text>
-        <Text style={styles.recentTime}>Last played {item.lastPlayed}</Text>
+        <Text style={styles.recentTitle}>{episode.title}</Text>
+        <Text style={styles.recentPodcast}>{episode.author}</Text>
+        <Text style={styles.recentTime}>Last played {formatPublishedDate(episode.publishedDate)}</Text>
         <View style={styles.progressContainer}>
           <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${item.progress * 100}%` }]} />
+            <View style={[styles.progressFill, { width: `${(episode.metadata?.progress || 0) * 100}%` }]} />
           </View>
-          <Text style={styles.progressText}>{Math.round(item.progress * 100)}%</Text>
+          <Text style={styles.progressText}>{Math.round((episode.metadata?.progress || 0) * 100)}%</Text>
         </View>
       </View>
-      <TouchableOpacity onPress={() => playEpisode(item)}>
+      <TouchableOpacity onPress={() => playEpisode(episode)}>
         <Ionicons name="play-circle" size={32} color="#9C3141" />
       </TouchableOpacity>
     </TouchableOpacity>
   );
 
-  const renderFollowedShowItem = (show) => (
+  const renderFollowedShowItem = (podcast) => (
     <TouchableOpacity 
-      key={show.id} 
+      key={podcast.id} 
       style={styles.followedItem}
-      onPress={() => navigateToPodcastDetails(show)}
+      onPress={() => navigateToPodcastDetails(podcast)}
     >
-      <Image source={show.image} style={styles.followedImage} />
+      <Image source={podcast.image} style={styles.followedImage} />
       <View style={styles.followedContent}>
-        <Text style={styles.followedTitle}>{show.title}</Text>
-        <Text style={styles.followedHost}>{show.host}</Text>
-        <Text style={styles.followedUpdate}>Last episode: {show.lastEpisode}</Text>
+        <Text style={styles.followedTitle}>{podcast.title}</Text>
+        <Text style={styles.followedHost}>{podcast.author}</Text>
+        <Text style={styles.followedUpdate}>Episodes: {podcast.episodeCount || 0}</Text>
       </View>
-      {show.newEpisodes > 0 && (
+      {podcast.isNew && (
         <View style={styles.episodeBadge}>
-          <Text style={styles.episodeBadgeText}>{show.newEpisodes}</Text>
+          <Text style={styles.episodeBadgeText}>NEW</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -207,10 +294,10 @@ export default function HomeScreen() {
       <Image source={episode.image} style={styles.newEpisodeImage} />
       <View style={styles.newEpisodeContent}>
         <Text style={styles.newEpisodeTitle}>{episode.title}</Text>
-        <Text style={styles.newEpisodePodcast}>{episode.podcastTitle}</Text>
+        <Text style={styles.newEpisodePodcast}>{episode.author}</Text>
         <View style={styles.newEpisodeMeta}>
-          <Text style={styles.newEpisodeTime}>{episode.publishedDate}</Text>
-          <Text style={styles.newEpisodeDuration}>{episode.duration}</Text>
+          <Text style={styles.newEpisodeTime}>{formatPublishedDate(episode.publishedDate)}</Text>
+          <Text style={styles.newEpisodeDuration}>{formatDuration(episode.duration)}</Text>
         </View>
       </View>
       {episode.isNew && (
@@ -224,6 +311,15 @@ export default function HomeScreen() {
     </TouchableOpacity>
   );
 
+  // Get data using utility functions
+  const topEpisodes = getTrendingEpisodes(3);
+  const newNoteworthy = podcasts.filter(p => p.isNew).slice(0, 10);
+  const featuredCollections = collections.slice(0, 5);
+  const youMightLike = getCategoryRecommendations('Health & Wellness', 5);
+  const recentlyPlayed = getInProgressEpisodes().slice(0, 5);
+  const showsYouFollow = getSubscribedPodcasts().slice(0, 5);
+  const newEpisodes = getNewEpisodes(5);
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
@@ -231,21 +327,22 @@ export default function HomeScreen() {
       {/* Header */}
       <BlurView intensity={95} tint="extraLight" style={styles.header}>
         <View style={styles.headerContent}>
-              <Text style={styles.heading}>{greeting}</Text>
-              <View style={styles.headerActions}>
-                <TouchableOpacity onPress={() => navigation.navigate('ProfileScreen')}>
-                  <Image 
-                    source={profileImage ? { uri: profileImage } : getAvatarImage()}
-                    style={styles.avatar} 
-                  />
-                </TouchableOpacity>
-              </View>
+          <Text style={styles.heading}>{greeting}</Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={() => navigation.navigate(SCREEN_NAMES.PROFILE)}>
+              <Image 
+                source={profileImage ? { uri: profileImage } : getAvatarImage()}
+                style={styles.avatar} 
+              />
+            </TouchableOpacity>
+          </View>
         </View>
       </BlurView>
 
       <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
 
         {/* Top Episodes */}
+        {topEpisodes.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Top Episodes</Text>
@@ -255,24 +352,30 @@ export default function HomeScreen() {
             </View>
             {topEpisodes.map(renderTopEpisodeItem)}
           </View>
+        )}
 
         {/* New & Noteworthy */}
+        {newNoteworthy.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>New & Noteworthy</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
               {newNoteworthy.map(renderNewNoteworthyCard)}
             </ScrollView>
           </View>
+        )}
 
         {/* Featured Collections */}
+        {featuredCollections.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Featured Collections</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
               {featuredCollections.map(renderCollectionCard)}
             </ScrollView>
           </View>
+        )}
 
         {/* You Might Like */}
+        {youMightLike.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>You Might Like</Text>
@@ -282,8 +385,10 @@ export default function HomeScreen() {
             </View>
             {youMightLike.map(renderYouMightLikeItem)}
           </View>
+        )}
 
         {/* Recently Played */}
+        {recentlyPlayed.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recently Played</Text>
@@ -293,8 +398,10 @@ export default function HomeScreen() {
             </View>
             {recentlyPlayed.map(renderRecentlyPlayedItem)}
           </View>
+        )}
 
         {/* Shows You Follow */}
+        {showsYouFollow.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Shows You Follow</Text>
@@ -304,8 +411,10 @@ export default function HomeScreen() {
             </View>
             {showsYouFollow.map(renderFollowedShowItem)}
           </View>
+        )}
 
         {/* New Episodes */}
+        {newEpisodes.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>New Episodes</Text>
@@ -315,6 +424,7 @@ export default function HomeScreen() {
             </View>
             {newEpisodes.map(renderNewEpisodeItem)}
           </View>
+        )}
 
         {/* Bottom spacing */}
         <View style={styles.bottomPadding} />
