@@ -18,7 +18,7 @@ import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext';
-import { trendingSearches, popularPodcasts } from '../../data/podcastData';
+import { trendingSearches, popularPodcasts } from '../../constants/podcastData';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -144,7 +144,7 @@ export default function SearchScreen({ navigation }) {
   };
 
   const handlePodcastPress = (podcast) => {
-    navigation.navigate('PodcastDetailScreen', { podcast });
+    navigation.navigate('PodcastDetailsScreen', { podcast });
   };
 
   const handleEpisodePress = (episode) => {
