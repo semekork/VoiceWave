@@ -9,6 +9,7 @@ export const SCREEN_NAMES = {
   REGISTER: 'RegisterScreen',
   FORGOT_PASSWORD: 'ForgotPasswordScreen',
   SUCCESS: 'SuccessScreen',
+  DELETE_ACCOUNT: 'DeleteAccountScreen',
   
   // Main Tabs
   HOME: 'HomeScreen',
@@ -31,6 +32,7 @@ export const SCREEN_NAMES = {
     TERMS: 'TermsScreen',
     ABOUT: 'AboutScreen',
     NOTES: 'ReleaseNotes',
+    GOODBYE: 'GoodbyeScreen',
 
     //  Details Screens
     DETAILS: 'PodcastDetailsScreen',
