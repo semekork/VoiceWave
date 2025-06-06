@@ -15,7 +15,7 @@ import {
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext';
-import { librarySections, recentEpisodes, downloadedEpisodes, subscribedShows } from '../../data/podcastData';
+import { librarySections, recentEpisodes, downloadedEpisodes, subscribedShows } from '../../constants/podcastData';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
