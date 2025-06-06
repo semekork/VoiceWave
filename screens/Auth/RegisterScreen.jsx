@@ -19,6 +19,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { register } from '../../firebase/auth';
 
 const RegisterScreen = ({ navigation }) => {
   // Form state
@@ -208,10 +209,14 @@ const RegisterScreen = ({ navigation }) => {
       ]).start();
       
       // Simulate network request
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      console.log('Signing up with:', fullName, email, password);
+      const result = await register(email, password);
+
+      if (result.error) {
+      Alert.alert("Registration Error", result.error);
+      } else {
+      console.log('User registered:', result.user);
       navigation.navigate("SuccessScreen");
+    }
     } catch (error) {
       Alert.alert('Error', 'Failed to create account. Please try again.');
     } finally {

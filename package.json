@@ -28,6 +28,7 @@
     "expo-linear-gradient": "~14.1.4",
     "expo-sharing": "~13.1.5",
     "expo-status-bar": "~2.2.3",
+    "firebase": "^11.9.0",
     "react": "19.0.0",
     "react-native": "0.79.2",
     "react-native-audio-toolkit": "^1.0.6",
