@@ -6,7 +6,7 @@ const useAudioPlayer = ({
   autoPlay = false,
   defaultVolume = 1.0,
   persistPosition = true,
-  staysActiveInBackground = true
+  
 } = {}) => {
   const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
