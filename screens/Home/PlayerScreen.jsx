@@ -91,10 +91,6 @@ export default function PlayerScreen({ navigation, route }) {
     }
   }, [isPlaying]);
 
-  // Cover press handler (optional - can be removed if you don't want tap functionality)
-  const handleCoverPress = () => {
-    playPause();
-  };
 
   // Menu toggle handler
   const handleMenuToggle = () => {
@@ -108,30 +104,6 @@ export default function PlayerScreen({ navigation, route }) {
 
   const handleGoBack = () => {
     navigation.goBack();
-  };
-
-  // Utility handlers
-  const handleDownloadPodcast = async () => {
-    Alert.alert('Download', 'Podcast download started');
-  };
-
-  const handleSharePodcast = async () => {
-    try {
-      await Sharing.shareAsync('', {
-        dialogTitle: 'Share Podcast',
-        mimeType: 'audio/mp3',
-      });
-    } catch (error) {
-      Alert.alert('Error', 'Failed to share podcast');
-    }
-  };
-
-  const handlePlaybackSettings = () => {
-    Alert.alert('Playback Settings', 'Customize your listening experience', [
-      { text: 'Audio Quality', onPress: () => {} },
-      { text: 'Equalizer', onPress: () => {} },
-      { text: 'Cancel', style: 'cancel' }
-    ]);
   };
 
   return (
@@ -155,10 +127,6 @@ export default function PlayerScreen({ navigation, route }) {
 
       {/* Animated Podcast Cover */}
       <View style={styles.podcastCover}>
-        <TouchableOpacity 
-          onPress={handleCoverPress}
-          activeOpacity={0.8}
-        >
           <Animated.View
             style={[
               styles.coverContainer,
@@ -171,7 +139,6 @@ export default function PlayerScreen({ navigation, route }) {
           >
             <Image source={podcastImage} style={styles.podcast} />
           </Animated.View>
-        </TouchableOpacity>
       </View>
 
       {/* Podcast Info */}
