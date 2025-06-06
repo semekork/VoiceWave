@@ -107,7 +107,7 @@ const Onboarding = ({ navigation }) => {
       setCurrentScreen(currentScreen + 1);
       resetAndRunFadeSlideAnimation();
     } else {
-      navigation.navigate('GetStarted');
+      navigation.navigate('GetStartedScreen');
     }
   };
 
