@@ -13,7 +13,7 @@ import {
   Image,
   Share,
 } from 'react-native';
-import { Ionicons} from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -23,12 +23,16 @@ const AboutScreen = ({ navigation }) => {
     name: 'VoiceWave',
     version: '2.1.0',
     buildNumber: '42',
-    releaseDate: 'Septmener 2025',
+    releaseDate: 'September 2025',
     developer: 'VoiceWave Inc.',
     description: 'Your ultimate podcast companion for discovering, streaming, and organizing your favorite audio content.',
   });
 
-  const headerOpacity = scrollY.interpolate({
+  const circle1Animation = useRef(new Animated.Value(0)).current;
+  const circle2Animation = useRef(new Animated.Value(0)).current;
+  const circle3Animation = useRef(new Animated.Value(0)).current;
+
+  const headerOpacity = scrollY.interpolate({ 
     inputRange: [0, 50],
     outputRange: [0, 1],
     extrapolate: 'clamp',
@@ -40,10 +44,37 @@ const AboutScreen = ({ navigation }) => {
     extrapolate: 'clamp',
   });
 
+  React.useEffect(() => {
+    const createFloatingAnimation = (value) => {
+      return Animated.sequence([
+        Animated.timing(value, {
+          toValue: 1,
+          duration: 2500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(value, {
+          toValue: 0,
+          duration: 2500,
+          useNativeDriver: true,
+        })
+      ]);
+    };
+
+    Animated.parallel([
+      Animated.loop(createFloatingAnimation(circle1Animation)),
+      Animated.loop(createFloatingAnimation(circle2Animation), {
+        delay: 500
+      }),
+      Animated.loop(createFloatingAnimation(circle3Animation), {
+        delay: 1000
+      })
+    ]).start();
+  }, []);
+
   const handleBackPress = () => {
-    if (navigation.canGoBack()) {
+    if (navigation?.canGoBack()) {
       navigation.goBack();
-    } else {
+    } else if (navigation?.navigate) {
       navigation.navigate('Profile');
     }
   };
@@ -74,7 +105,10 @@ const AboutScreen = ({ navigation }) => {
 
   const InfoCard = ({ icon, title, value, onPress, showArrow = false }) => (
     <TouchableOpacity 
-      style={styles.infoCard} 
+      style={[
+        styles.infoCard,
+        !onPress && styles.infoCardDisabled
+      ]} 
       onPress={onPress}
       disabled={!onPress}
       activeOpacity={onPress ? 0.6 : 1}
@@ -124,6 +158,58 @@ const AboutScreen = ({ navigation }) => {
     </View>
   );
 
+  const handleNavigation = (screenName) => {
+    if (navigation?.navigate) {
+      navigation.navigate(screenName);
+    } else {
+      Alert.alert('Navigation Error', 'Navigation not available');
+    }
+  };
+
+  const backgroundPattern = (
+    <View style={styles.backgroundPattern}>
+      <Animated.View
+        style={[
+          styles.floatingCircle1,
+          {
+            transform: [{
+              translateY: circle1Animation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, -15]
+              })
+            }]
+          }
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.floatingCircle2,
+          {
+            transform: [{
+              translateY: circle2Animation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 20]
+              })
+            }]
+          }
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.floatingCircle3,
+          {
+            transform: [{
+              translateY: circle3Animation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, -25]
+              })
+            }]
+          }
+        ]}
+      />
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -151,12 +237,15 @@ const AboutScreen = ({ navigation }) => {
       >
         {/* App Header */}
         <LinearGradient
-          colors={['#9C3141', '#B8485E']}
+          colors={['#9C3141', '#B8485E', '#C35370']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={styles.appHeader}
         >
+          {backgroundPattern}
           <Animated.View style={[styles.logoContainer, { transform: [{ scale: logoScale }] }]}>
             <View style={styles.logoBackground}>
-             <Image source={require('../../assets/Logo/Logo(1).png')} style={styles.logo} resizeMode='contain' />
+              <Image source={require('../../assets/Logo/Logo(1).png')} style={styles.logo} resizeMode='contain' />
             </View>
           </Animated.View>
           
@@ -164,8 +253,13 @@ const AboutScreen = ({ navigation }) => {
           <Text style={styles.appTagline}>{appInfo.description}</Text>
           
           <TouchableOpacity style={styles.shareAppButton} onPress={handleShare}>
-            <Ionicons name="share-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.shareAppText}>Share App</Text>
+            <LinearGradient
+              colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.1)']}
+              style={styles.shareButtonGradient}
+            >
+              <Ionicons name="share-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.shareAppText}>Share App</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </LinearGradient>
 
@@ -192,7 +286,7 @@ const AboutScreen = ({ navigation }) => {
               icon="document-text-outline"
               title="What's New"
               value="View latest updates and features"
-              onPress={() => navigation.navigate('ReleaseNotes')}
+              onPress={() => handleNavigation('ReleaseNotes')}
               showArrow={true}
             />
           </View>
@@ -290,7 +384,7 @@ const AboutScreen = ({ navigation }) => {
               icon="logo-linkedin"
               label="LinkedIn"
               url="https://www.linkedin.com/in/calebdussey"
-              color="#1877F2"
+              color="#0077B5" 
             />
             <SocialButton
               icon="globe-outline"
@@ -316,14 +410,14 @@ const AboutScreen = ({ navigation }) => {
               icon="star-outline"
               title="Rate Our App"
               value="Love the app? Leave us a review!"
-              onPress={() => handleExternalLink('')}
+              onPress={() => handleExternalLink('https://apps.apple.com/app/voicewave')} // Added placeholder URL
               showArrow={true}
             />
             <InfoCard
               icon="chatbubble-outline"
               title="Send Feedback"
               value="Help us improve with your suggestions"
-              onPress={() => handleExternalLink('mailto:trickvybe@gmail.com.com')}
+              onPress={() => handleExternalLink('mailto:trickvybe@gmail.com')} // Fixed duplicate .com
               showArrow={true}
             />
           </View>
@@ -337,21 +431,21 @@ const AboutScreen = ({ navigation }) => {
               icon="document-text-outline"
               title="Terms of Service"
               value="Read our terms and conditions"
-              onPress={() => navigation.navigate('TermsScreen')}
+              onPress={() => handleNavigation('TermsScreen')}
               showArrow={true}
             />
             <InfoCard
               icon="shield-outline"
               title="Privacy Policy"
               value="Learn how we protect your data"
-              onPress={() => navigation.navigate('PrivacyScreen')}
+              onPress={() => handleNavigation('PrivacyScreen')}
               showArrow={true}
             />
             <InfoCard
               icon="key-outline"
               title="Licenses"
               value="Open source libraries and credits"
-              onPress={() => navigation.navigate('Licenses')}
+              onPress={() => handleNavigation('Licenses')}
               showArrow={true}
             />
           </View>
@@ -376,7 +470,7 @@ const AboutScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F8F9FF',
   },
   header: {
     position: 'absolute',
@@ -419,7 +513,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   appHeader: {
-    paddingTop: 100,
+    paddingTop: 40,
     paddingBottom: 40,
     paddingHorizontal: 20,
     alignItems: 'center',
@@ -427,21 +521,58 @@ const styles = StyleSheet.create({
   logoContainer: {
     marginBottom: 20,
   },
-  logo: {
-    width: 100,
-    height: 100,
-    marginBottom: 2,
-    
-  },
   logoBackground: {
     width: 120,
     height: 120,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.10)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    shadowColor: 'rgba(0,0,0,0.3)',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  logo: {
+    width: 100,
+    height: 100,
+  },
+  backgroundPattern: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  floatingCircle1: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    top: 20,
+    right: 30,
+  },
+  floatingCircle2: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    bottom: 40,
+    left: 40,
+  },
+  floatingCircle3: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    top: 60,
+    left: 20,
   },
   appName: {
     fontSize: 32,
@@ -459,12 +590,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   shareAppButton: {
+    marginTop: 8,
+    borderRadius: 25,
+    overflow: 'hidden',
+    shadowColor: 'rgba(0,0,0,0.3)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  shareButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 25,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
@@ -478,30 +617,35 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#000000',
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#1A1A1E',
     paddingHorizontal: 20,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   infoContainer: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 20,
+    shadowColor: 'rgba(156, 49, 65, 0.15)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(156, 49, 65, 0.08)',
   },
   infoCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: '#F0F0F5',
+  },
+  infoCardDisabled: {
+    opacity: 0.7,
   },
   infoLeft: {
     flexDirection: 'row',
@@ -509,13 +653,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   infoIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#F8F8F8',
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(156, 49, 65, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   infoContent: {
     flex: 1,
@@ -533,27 +677,34 @@ const styles = StyleSheet.create({
   featuresContainer: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: 'rgba(156, 49, 65, 0.15)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(156, 49, 65, 0.08)',
   },
   featureItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   featureIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#F8F9FF',
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: 'rgba(156, 49, 65, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 20,
+    shadowColor: 'rgba(156, 49, 65, 0.2)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   featureContent: {
     flex: 1,
@@ -578,22 +729,25 @@ const styles = StyleSheet.create({
   },
   statCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 20,
+    padding: 24,
     alignItems: 'center',
     width: '48%',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    marginBottom: 16,
+    shadowColor: 'rgba(156, 49, 65, 0.15)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(156, 49, 65, 0.08)',
+    transform: [{ scale: 1 }],
   },
   statNumber: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
     color: '#9C3141',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   statLabel: {
     fontSize: 14,
@@ -610,12 +764,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   teamAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    marginBottom: 12,
-    borderWidth: 3,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    marginBottom: 16,
+    borderWidth: 4,
     borderColor: '#9C3141',
+    shadowColor: 'rgba(156, 49, 65, 0.3)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   teamName: {
     fontSize: 16,
@@ -639,11 +798,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 16,
     width: '48%',
-    marginBottom: 12,
+    marginBottom: 16,
+    shadowColor: 'rgba(0,0,0,0.1)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   socialLabel: {
     fontSize: 14,
