@@ -19,6 +19,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
+import { SCREEN_NAMES } from '../../navigation/types';
+import { NavigationService } from '../../navigation/navigationHelpers';
+
 
 
 const LoginScreen = () => {
@@ -85,7 +88,7 @@ const LoginScreen = () => {
         setIsLoading(false);
         console.log('Logging in with:', email, password);
         // Navigate to home screen on success
-        navigation.navigate('TabsStack');
+        navigation.navigate('MainStack');
       }, 1500);
     }
   };
@@ -159,23 +162,18 @@ const LoginScreen = () => {
 
   // Show terms and conditions
   const showTermsAndConditions = () => {
-    Haptics.selectionAsync();
-    Alert.alert(
-      "Terms and Conditions",
-      "These are the terms and conditions for using our app.",
-      [{ text: "OK" }]
-    );
-  };
+  Haptics.selectionAsync();
+  navigation.navigate(SCREEN_NAMES.TERMS, { 
+    showPrivacyPolicy: false 
+  });
+};
 
-  // Show privacy policy
-  const showPrivacyPolicy = () => {
-    Haptics.selectionAsync();
-    Alert.alert(
-      "Privacy Policy",
-      "This is our privacy policy for handling your data.",
-      [{ text: "OK" }]
-    );
-  };
+const showPrivacyPolicy = () => {
+  Haptics.selectionAsync();
+  navigation.navigate(SCREEN_NAMES.TERMS, { 
+    showPrivacyPolicy: true 
+  });
+};
 
   return (
     <>
