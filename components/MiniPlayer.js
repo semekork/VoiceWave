@@ -4,7 +4,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useGlobalAudioPlayer } from "../context/AudioPlayerContext";
 import { isSameAudioSource } from '../utils/audioHelpers';
-import podcastList from "../constants/podcastList"; // 👈 Import podcast list
 
 const MiniPlayer = () => {
   const navigation = useNavigation();
@@ -18,27 +17,29 @@ const MiniPlayer = () => {
     sound,
     isLoading,
     error,
+    currentPodcast, // This should contain the currently playing episode/podcast data
   } = useGlobalAudioPlayer();
 
-  // Get your default podcast (first one, or change logic if needed)
-  const podcastDetails = podcastList[0];
+  // Only show MiniPlayer if there's a current podcast/episode loaded
+  if (!currentPodcast) {
+    return null;
+  }
 
   const handlePress = async () => {
-    if (!isSameAudioSource(audioSource, podcastDetails.audioSource)) {
-      await loadAudio(podcastDetails.audioSource);
+    if (!isSameAudioSource(audioSource, currentPodcast.audioSource)) {
+      await loadAudio(currentPodcast.audioSource);
     }
-    setCurrentPodcast(podcastDetails);
 
     navigation.navigate("MainStack", {
       screen: "PlayerScreen",
-      params: podcastDetails,
+      params: currentPodcast,
     });
   };
 
   const handlePlayPause = async () => {
     if (!sound) {
       console.log("⚠️ Sound is not loaded yet. Loading audio...");
-      await loadAudio(podcastDetails.audioSource);
+      await loadAudio(currentPodcast.audioSource);
     }
     console.log("🔊 playPause triggered, isPlaying:", isPlaying);
     playPause();
@@ -54,21 +55,23 @@ const MiniPlayer = () => {
     <TouchableOpacity style={styles.container} onPress={handlePress}>
       <View style={styles.leftSection}>
         <Image
-          source={podcastDetails.podcastImage}
+          source={currentPodcast.image}  
           style={styles.image}
         />
         <View style={styles.textContainer}>
           <Text style={styles.title} numberOfLines={1}>
-            {podcastDetails.podcastTitle}
+            {currentPodcast.title} 
           </Text>
-          <Text style={styles.subtitle}>{podcastDetails.podcastSubtitle}</Text>
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {currentPodcast.author}
+          </Text>
         </View>
       </View>
 
       <View style={styles.rightSection}>
-        <TouchableOpacity onPress={handlePlayPause}>
+        <TouchableOpacity onPress={handlePlayPause} disabled={isLoading}>
           <Ionicons
-            name={isPlaying ? "pause" : "play"}
+            name={isLoading ? "hourglass" : (isPlaying ? "pause" : "play")}
             size={24}
             color="#000"
             style={{ marginRight: 16 }}
@@ -86,56 +89,56 @@ const MiniPlayer = () => {
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    marginHorizontal: 10,
-    borderRadius: 16,
-    padding: 12,
-    justifyContent: "space-between",
-    alignItems: "center",
-    shadowColor: "#000",
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    width: '95%',
+    borderRadius: 32,
+    borderColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 3.84,
     elevation: 5,
-    position: "absolute",
-    zIndex: 10,
-    width: "95%",
   },
   leftSection: {
-    flexDirection: "row",
-    alignItems: "center",
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   image: {
-    width: 45,
-    height: 45,
-    borderRadius: 10,
-    marginRight: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 4,
+    marginRight: 12,
   },
   textContainer: {
-    flexShrink: 1,
+    flex: 1,
   },
   title: {
-    fontWeight: "bold",
     fontSize: 14,
-    color: "#000",
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 2,
   },
   subtitle: {
     fontSize: 12,
-    color: "#888",
+    color: '#666',
   },
   rightSection: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  durationContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   durationText: {
-    marginLeft: 4,
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 10,
+    color: '#000',
+    marginTop: -2,
+    textAlign: 'center',
   },
 });
 
