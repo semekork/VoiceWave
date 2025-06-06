@@ -17,6 +17,8 @@ import AboutScreen from "../screens/Profile/AboutScreen";
 import ReleaseNotes from "../screens/Profile/ReleaseNotes";
 import PodcastDetailScreen from "../screens/Details/PodcastDetailsScreen";
 import EqualizerScreen from "../components/Equalizer";
+import DeleteAccountScreen from "../screens/Auth/DeleteAccount";
+import GoodbyeScreen from "../screens/Profile/GoodbyeScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -112,6 +114,24 @@ const MainNavigator = () => {
           }}
         />
         <Stack.Screen
+          name={SCREEN_NAMES.DELETE_ACCOUNT} 
+          component={DeleteAccountScreen}
+          options={{
+            presentation: 'modal',
+            gestureDirection: 'vertical',
+            animation: 'slide_from_bottom',
+          }}
+        />
+        <Stack.Screen
+          name={SCREEN_NAMES.GOODBYE} 
+          component={GoodbyeScreen}
+          options={{
+            presentation: 'fullScreenModal',
+            gestureDirection: 'vertical',
+            animation: 'slide_from_bottom',
+          }}
+        />
+        <Stack.Screen
           name={SCREEN_NAMES.NOTES}
           component={ReleaseNotes}
           options={{}}
@@ -127,7 +147,7 @@ const MainNavigator = () => {
           name={SCREEN_NAMES.PLAYER} 
           component={PlayerScreen}
           options={{
-            animation: 'slide_from_bottom',
+            animation: 'default',
             gestureDirection: 'vertical',
           }}
         />
