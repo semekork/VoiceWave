@@ -92,7 +92,7 @@ const generateEpisodes = (podcastTitle) => [
   }
 ];
 
-export default function PodcastDetailScreen() {
+export default function PodcastDetailsScreen() {
   const route = useRoute();
   const navigation = useNavigation();
   
