@@ -31,24 +31,19 @@ const PrivacyScreen = ({ navigation }) => {
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
-      'This action cannot be undone. All your data, playlists, and listening history will be permanently deleted.',
+      'Are you sure you want to delete your account? This action cannot be undone.',
       [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive', 
-          onPress: () => {
-            Alert.alert(
-              'Confirm Deletion',
-              'Please type "DELETE" to confirm account deletion.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'I understand', style: 'destructive' }
-              ]
-            );
-          }
+        {
+          text: 'Cancel',
+          style: 'cancel',
         },
-      ]
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => navigation.navigate('DeleteAccountScreen'),
+        },
+      ],
+      { cancelable: false }
     );
   };
 
@@ -159,12 +154,6 @@ const PrivacyScreen = ({ navigation }) => {
             subtitle="Add an extra layer of security to your account"
             value={settings.twoFactorAuth}
             onValueChange={(value) => handleToggle('twoFactorAuth', value)}
-          />
-          <MenuItem
-            title="Change Password"
-            subtitle="Update your account password"
-            showToggle={false}
-            onPress={() => navigation.navigate('ChangePassword')}
           />
           <MenuItem
             title="Login Activity"
