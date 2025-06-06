@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';  
+import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationService } from './navigation/navigationHelpers';
 import { SCREEN_NAMES } from './navigation/types';
@@ -22,8 +22,7 @@ const RootStack = createNativeStackNavigator();
 export default function App() {
   const navigationRef = useRef();
   const [isReady, setIsReady] = useState(false);
-  const [initialRoute, setInitialRoute] = useState(SCREEN_NAMES.MAIN_STACK); // Default to main app
-
+  const [initialRoute, setInitialRoute] = useState(SCREEN_NAMES.MAIN_STACK); 
   // Initialize navigation service
   useEffect(() => {
     if (navigationRef.current) {
@@ -75,7 +74,9 @@ export default function App() {
     <AudioPlayerProvider>
       <ProfileImageProvider>
         <NavigationContainer
-          ref={navigationRef}
+          ref={navigationRef => {
+            NavigationService.setTopLevelNavigator(navigationRef);
+          }}
           onReady={onNavigationReady}
         >
           <StatusBar style="light" />
