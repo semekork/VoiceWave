@@ -444,7 +444,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
               style={styles.helpButton}
               onPress={() => Alert.alert(
                 "Need Help?",
-                "If you're having trouble recovering your password, please contact our support team at support@example.com",
+                "If you're having trouble recovering your password, please contact our support team at trickvybe@gmail.com",
                 [{ text: "OK", style: "default" }]
               )}
             >
