@@ -9,6 +9,7 @@ import RegisterScreen from "../screens/Auth/RegisterScreen";
 import ForgotPasswordScreen from "../screens/Auth/ForgotPasswordScreen";
 import SuccessScreen from "../screens/Auth/SuccessScreen";
 
+
 const Stack = createNativeStackNavigator();
 
 export const AuthNavigator = () => {
