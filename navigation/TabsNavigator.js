@@ -193,7 +193,7 @@ export default TabsNavigator;
 const styles = StyleSheet.create({
   miniPlayerContainer: {
     position: "absolute",
-    bottom: 160,
+    bottom: 100,
     left: 0,
     right: 0,
     alignItems: "center",
