@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../lib/supabase';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,7 +26,6 @@ const ForgotPasswordScreen = ({ navigation }) => {
   const [isButtonActive, setIsButtonActive] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   
   // Animation values
@@ -33,7 +33,6 @@ const ForgotPasswordScreen = ({ navigation }) => {
   const slideAnim = useState(new Animated.Value(50))[0];
   const iconRotate = useState(new Animated.Value(0))[0];
   const buttonScale = useRef(new Animated.Value(1)).current;
-  const successFade = useRef(new Animated.Value(0)).current;
   
   // Shaky animation values
   const shakeX = useRef(new Animated.Value(0)).current;
@@ -190,12 +189,10 @@ const ForgotPasswordScreen = ({ navigation }) => {
     }).start();
   };
 
-  const handleRecoverPassword = () => {
+  const handleRecoverPassword = async () => {
     if (!isButtonActive || isLoading) return;
     
     animateButtonPress();
-    
-    // Start loading state
     setIsLoading(true);
     
     // Password recovery animation - more intense shaking when button is pressed
@@ -253,26 +250,57 @@ const ForgotPasswordScreen = ({ navigation }) => {
       ]),
     ]).start();
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Send password reset email using Supabase
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'your-app://reset-password', // Replace with your app's deep link
+      });
+
       setIsLoading(false);
-      setShowSuccess(true);
+
+      if (error) {
+        // Handle specific error cases
+        let errorMessage = 'An error occurred while sending the recovery email.';
+        
+        if (error.message.includes('rate limit')) {
+          errorMessage = 'Too many requests. Please wait a few minutes before trying again.';
+        } else if (error.message.includes('invalid email')) {
+          errorMessage = 'Please enter a valid email address.';
+        } else if (error.message.includes('not found')) {
+          errorMessage = 'No account found with this email address.';
+        }
+
+        Alert.alert(
+          'Password Recovery Failed',
+          errorMessage,
+          [{ text: 'OK', style: 'default' }]
+        );
+        return;
+      }
+
+      // Success - show confirmation
+      Alert.alert(
+        'Recovery Email Sent!',
+        `We've sent a password recovery link to ${email}. Please check your email and follow the instructions to reset your password.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(), // Go back to login screen
+            style: 'default'
+          }
+        ]
+      );
+
+    } catch (error) {
+      setIsLoading(false);
+      console.error('Password recovery error:', error);
       
-      // Animate success message
-      Animated.timing(successFade, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }).start();
-      
-      // Resume normal shaking after the intense shake
-      setTimeout(() => {
-        startShaking();
-      }, 1000);
-      
-      // Password recovery logic would go here
-      console.log('Recovering password for:', email);
-    }, 2000);
+      Alert.alert(
+        'Network Error',
+        'Please check your internet connection and try again.',
+        [{ text: 'OK', style: 'default' }]
+      );
+    }
   };
 
   // Icon rotation interpolation
@@ -369,9 +397,10 @@ const ForgotPasswordScreen = ({ navigation }) => {
                     autoCapitalize="none"
                     onFocus={handleFocus}
                     onBlur={handleBlur}
+                    editable={!isLoading}
                   />
                 </View>
-                {email && (
+                {email && !isLoading && (
                   <TouchableOpacity 
                     style={styles.clearButton}
                     onPress={() => setEmail('')}
@@ -389,25 +418,16 @@ const ForgotPasswordScreen = ({ navigation }) => {
                 </Animated.View>
               )}
               
-              {/* Success Message */}
-              {showSuccess && (
-                <Animated.View style={[styles.successMessage, { opacity: successFade }]}>
-                  <Ionicons name="checkmark-circle" size={18} color="#4CD964" />
-                  <Text style={styles.successText}>
-                    Recovery link sent to {email}
-                  </Text>
-                </Animated.View>
-              )}
-              
               <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
                 <TouchableOpacity 
                   onPress={handleRecoverPassword}
-                  activeOpacity={isButtonActive ? 0.8 : 1}
-                  style={{ opacity: isButtonActive ? 1 : 0.6 }}
+                  activeOpacity={isButtonActive && !isLoading ? 0.8 : 1}
+                  style={{ opacity: isButtonActive && !isLoading ? 1 : 0.6 }}
+                  disabled={!isButtonActive || isLoading}
                 >
                   <View style={styles.continueButton}>
                     <LinearGradient
-                      colors={isButtonActive ? ["#1963A7", "#49A1D1"] : ["#8391A1", "#A8B1BD"]}
+                      colors={isButtonActive && !isLoading ? ["#1963A7", "#49A1D1"] : ["#8391A1", "#A8B1BD"]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.continueButtonGradient}
@@ -416,7 +436,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
                         <ActivityIndicator color="#FFFFFF" size="small" />
                       ) : (
                         <>
-                          <Text style={styles.continueButtonText}>Send Recovery Link</Text>
+                          <Text style={styles.continueButtonText}>Continue</Text>
                           <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                         </>
                       )}
@@ -433,8 +453,9 @@ const ForgotPasswordScreen = ({ navigation }) => {
                 <TouchableOpacity 
                   onPress={() => navigation.navigate('LoginScreen')}
                   hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                  disabled={isLoading}
                 >
-                  <Text style={styles.returnLinkText}>Login</Text>
+                  <Text style={[styles.returnLinkText, { opacity: isLoading ? 0.5 : 1 }]}>Login</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -447,6 +468,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
                 "If you're having trouble recovering your password, please contact our support team at trickvybe@gmail.com",
                 [{ text: "OK", style: "default" }]
               )}
+              disabled={isLoading}
             >
               <Ionicons name="help-circle-outline" size={22} color="rgba(255,255,255,0.8)" />
               <Text style={styles.helpText}>Need help?</Text>
@@ -624,20 +646,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255,255,255,0.8)',
     marginLeft: 5,
-  },
-  successMessage: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 15,
-    backgroundColor: 'rgba(76, 217, 100, 0.15)',
-    borderRadius: 8,
-  },
-  successText: {
-    fontSize: 13,
-    color: '#FFFFFF',
-    marginLeft: 6,
   },
   continueButton: {
     width: '100%',
