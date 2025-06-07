@@ -38,6 +38,9 @@ export const SCREEN_NAMES = {
 
     //  Details Screens
     DETAILS: 'PodcastDetailsScreen',
+
+    // Live Chat
+    LIVE_CHAT: 'LiveChatScreen',
   
   // Stack Names
   ONBOARDING_STACK: 'OnboardingStack',

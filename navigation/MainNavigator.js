@@ -20,6 +20,7 @@ import EqualizerScreen from "../components/Equalizer";
 import DeleteAccountScreen from "../screens/Auth/DeleteAccount";
 import GoodbyeScreen from "../screens/Profile/GoodbyeScreen";
 import LoginActivity from "../screens/Auth/LoginActivity";
+import liveChat from "../screens/Chat/liveChat";
 
 const Stack = createNativeStackNavigator();
 
@@ -174,6 +175,14 @@ const MainNavigator = () => {
           options={{
             animation: 'slide_from_right',
             gestureDirection: 'horizontal',
+          }}
+        />
+        <Stack.Screen 
+          name={SCREEN_NAMES.LIVE_CHAT} 
+          component={liveChat}
+          options={{
+            animation: 'slide_from_bottom',
+            gestureDirection: 'vertical',
           }}
         />
       </Stack.Group>

@@ -1,10 +1,11 @@
-// services/loginService.js
+// services/loginService.js - Fixed version with proper error handling
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 class LoginService {
   constructor() {
     this.currentSessionId = null;
+    this.isInitialized = false;
   }
 
   // Generate a unique session ID
@@ -12,49 +13,96 @@ class LoginService {
     return 'session_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
   }
 
-  // Get device and location information
+  // Get device and location information with better error handling
   async getDeviceInfo() {
     try {
-      // Get IP address
-      const ipResponse = await fetch('https://api.ipify.org?format=json');
-      const ipData = await ipResponse.json();
-      
-      // Get location data
-      const locationResponse = await fetch(`https://ipapi.co/${ipData.ip}/json/`);
-      const locationData = await locationResponse.json();
-
-      return {
-        ip: ipData.ip,
-        userAgent: navigator.userAgent || 'React Native App',
-        location: {
-          city: locationData.city,
-          region: locationData.region,
-          country: locationData.country_name,
-          latitude: locationData.latitude,
-          longitude: locationData.longitude,
-          timezone: locationData.timezone,
-        }
-      };
-    } catch (error) {
-      console.warn('Could not fetch device info:', error);
-      return {
+      let deviceInfo = {
         ip: 'Unknown',
-        userAgent: navigator.userAgent || 'React Native App',
+        userAgent: 'React Native App',
         location: {
           city: 'Unknown',
           region: 'Unknown',
           country: 'Unknown',
+          latitude: null,
+          longitude: null,
+          timezone: 'Unknown',
+        }
+      };
+
+      // Try to get IP address with timeout
+      try {
+        const ipResponse = await Promise.race([
+          fetch('https://api.ipify.org?format=json'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+        ]);
+        
+        if (ipResponse.ok) {
+          const ipData = await ipResponse.json();
+          deviceInfo.ip = ipData.ip || 'Unknown';
+
+          // Try to get location data with timeout
+          try {
+            const locationResponse = await Promise.race([
+              fetch(`https://ipapi.co/${ipData.ip}/json/`),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+            ]);
+            
+            if (locationResponse.ok) {
+              const locationData = await locationResponse.json();
+              if (locationData && !locationData.error) {
+                deviceInfo.location = {
+                  city: locationData.city || 'Unknown',
+                  region: locationData.region || 'Unknown',
+                  country: locationData.country_name || 'Unknown',
+                  latitude: locationData.latitude || null,
+                  longitude: locationData.longitude || null,
+                  timezone: locationData.timezone || 'Unknown',
+                };
+              }
+            }
+          } catch (locationError) {
+            console.warn('Could not fetch location info:', locationError.message);
+          }
+        }
+      } catch (ipError) {
+        console.warn('Could not fetch IP info:', ipError.message);
+      }
+
+      // Set user agent safely
+      if (typeof navigator !== 'undefined' && navigator.userAgent) {
+        deviceInfo.userAgent = navigator.userAgent;
+      }
+
+      return deviceInfo;
+    } catch (error) {
+      console.warn('Error in getDeviceInfo:', error);
+      return {
+        ip: 'Unknown',
+        userAgent: 'React Native App',
+        location: {
+          city: 'Unknown',
+          region: 'Unknown',
+          country: 'Unknown',
+          latitude: null,
+          longitude: null,
+          timezone: 'Unknown',
         }
       };
     }
   }
 
-  // Record login activity
+  // Record login activity with better error handling
   async recordLoginActivity(userId) {
+    if (!userId) {
+      console.warn('No userId provided to recordLoginActivity');
+      return null;
+    }
+
     try {
       const deviceInfo = await this.getDeviceInfo();
       this.currentSessionId = this.generateSessionId();
 
+      // Check if the RPC function exists before calling it
       const { data, error } = await supabase.rpc('record_login_activity', {
         p_user_id: userId,
         p_ip_address: deviceInfo.ip,
@@ -65,11 +113,16 @@ class LoginService {
 
       if (error) {
         console.error('Error recording login activity:', error);
+        // Don't fail authentication if we can't record activity
         return null;
       }
 
       // Store session ID locally
-      await AsyncStorage.setItem('current_session_id', this.currentSessionId);
+      try {
+        await AsyncStorage.setItem('current_session_id', this.currentSessionId);
+      } catch (storageError) {
+        console.warn('Could not store session ID:', storageError);
+      }
       
       return data;
     } catch (error) {
@@ -78,19 +131,114 @@ class LoginService {
     }
   }
 
-  // Sign in with email and password
+  // Get current authentication token
+  async getCurrentToken() {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Error getting session:', error);
+        return null;
+      }
+      return session?.access_token || null;
+    } catch (error) {
+      console.error('Error getting current token:', error);
+      return null;
+    }
+  }
+
+  // Get current user
+  async getCurrentUser() {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) {
+        console.error('Error getting user:', error);
+        return null;
+      }
+      return user;
+    } catch (error) {
+      console.error('Error getting current user:', error);
+      return null;
+    }
+  }
+
+  // Validate session with stored token - Fixed version
+  async validateSessionWithToken(token) {
+    if (!token) {
+      console.log('No token provided for validation');
+      return false;
+    }
+
+    try {
+      // Create a temporary client with the token
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error || !user) {
+        console.log('Token validation failed:', error?.message || 'No user found');
+        return false;
+      }
+
+      // Additional validation: check if session is still active in database
+      const sessionId = await this.getCurrentSessionId();
+      if (sessionId) {
+        const isSessionValid = await this.validateCurrentSession();
+        return isSessionValid;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error validating token:', error);
+      return false;
+    }
+  }
+
+  // Refresh authentication state with stored data
+  async refreshAuth(user, token) {
+    if (!user || !token) {
+      console.warn('Missing user or token in refreshAuth');
+      return false;
+    }
+
+    try {
+      console.log('Refreshing authentication state for user:', user.id);
+      
+      // Initialize session if needed
+      await this.initializeSession();
+      
+      return true;
+    } catch (error) {
+      console.error('Error refreshing auth:', error);
+      return false;
+    }
+  }
+
+  // Sign in with email and password - Fixed version
   async signInWithEmail(email, password) {
+    if (!email || !password) {
+      return { data: null, error: new Error('Email and password are required') };
+    }
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
       if (error) throw error;
 
-      if (data.user) {
-        // Record login activity
-        await this.recordLoginActivity(data.user.id);
+      if (data.user && data.session) {
+        // Record login activity (don't fail if this fails)
+        try {
+          await this.recordLoginActivity(data.user.id);
+        } catch (recordError) {
+          console.warn('Could not record login activity:', recordError);
+        }
+        
+        // Store authentication data for persistence
+        try {
+          await this.storeAuthData(data.user, data.session.access_token);
+        } catch (storeError) {
+          console.warn('Could not store auth data:', storeError);
+        }
       }
 
       return { data, error: null };
@@ -100,11 +248,15 @@ class LoginService {
     }
   }
 
-  // Sign up with email and password
+  // Sign up with email and password - Fixed version
   async signUpWithEmail(email, password, additionalData = {}) {
+    if (!email || !password) {
+      return { data: null, error: new Error('Email and password are required') };
+    }
+
     try {
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.trim(),
         password,
         options: {
           data: additionalData
@@ -114,8 +266,21 @@ class LoginService {
       if (error) throw error;
 
       if (data.user) {
-        // Record login activity for new user
-        await this.recordLoginActivity(data.user.id);
+        // Record login activity for new user (don't fail if this fails)
+        try {
+          await this.recordLoginActivity(data.user.id);
+        } catch (recordError) {
+          console.warn('Could not record login activity:', recordError);
+        }
+        
+        // Store authentication data for persistence
+        if (data.session?.access_token) {
+          try {
+            await this.storeAuthData(data.user, data.session.access_token);
+          } catch (storeError) {
+            console.warn('Could not store auth data:', storeError);
+          }
+        }
       }
 
       return { data, error: null };
@@ -125,24 +290,144 @@ class LoginService {
     }
   }
 
+  // Store authentication data for persistence
+  async storeAuthData(user, token) {
+    if (!user || !token) {
+      console.warn('Missing user or token in storeAuthData');
+      return;
+    }
+
+    try {
+      await AsyncStorage.multiSet([
+        ['user_token', token],
+        ['user_data', JSON.stringify(user)],
+        ['last_login', new Date().toISOString()]
+      ]);
+      console.log('Authentication data stored successfully');
+    } catch (error) {
+      console.error('Error storing auth data:', error);
+      throw error; // Re-throw storage errors as they're critical
+    }
+  }
+
+  // Clear stored authentication data
+  async clearStoredAuthData() {
+    try {
+      await AsyncStorage.multiRemove([
+        'user_token',
+        'user_data',
+        'last_login',
+        'current_session_id'
+      ]);
+      console.log('Stored authentication data cleared');
+    } catch (error) {
+      console.error('Error clearing stored auth data:', error);
+    }
+  }
+
+  // Get stored authentication data
+  async getStoredAuthData() {
+    try {
+      const [token, userData, lastLogin] = await AsyncStorage.multiGet([
+        'user_token',
+        'user_data',
+        'last_login'
+      ]);
+
+      if (!token[1] || !userData[1]) {
+        return null;
+      }
+
+      let parsedUserData;
+      try {
+        parsedUserData = JSON.parse(userData[1]);
+      } catch (parseError) {
+        console.error('Error parsing stored user data:', parseError);
+        await this.clearStoredAuthData(); // Clear corrupted data
+        return null;
+      }
+
+      return {
+        token: token[1],
+        user: parsedUserData,
+        lastLogin: lastLogin[1]
+      };
+    } catch (error) {
+      console.error('Error getting stored auth data:', error);
+      return null;
+    }
+  }
+
+  // Check if stored authentication is still valid
+  async isStoredAuthValid() {
+    try {
+      const storedAuth = await this.getStoredAuthData();
+      
+      if (!storedAuth) {
+        return false;
+      }
+
+      // Check if login is still valid (optional: implement token expiry)
+      if (storedAuth.lastLogin) {
+        try {
+          const loginTime = new Date(storedAuth.lastLogin);
+          const now = new Date();
+          const daysSinceLogin = (now - loginTime) / (1000 * 60 * 60 * 24);
+          
+          // If more than 30 days, require re-login (adjust as needed)
+          if (daysSinceLogin > 30) {
+            console.log('Stored auth expired, clearing data');
+            await this.clearStoredAuthData();
+            return false;
+          }
+        } catch (dateError) {
+          console.warn('Error checking login date:', dateError);
+          // Continue with token validation
+        }
+      }
+
+      // Validate the stored token
+      const isTokenValid = await this.validateSessionWithToken(storedAuth.token);
+      
+      if (!isTokenValid) {
+        console.log('Stored token invalid, clearing data');
+        await this.clearStoredAuthData();
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error checking stored auth validity:', error);
+      await this.clearStoredAuthData();
+      return false;
+    }
+  }
+
   // Sign out and end current session
   async signOut() {
     try {
-      // End current session in database
+      // End current session in database (don't fail if this fails)
       if (this.currentSessionId) {
-        await supabase.rpc('end_login_session', {
-          p_session_id: this.currentSessionId
-        });
+        try {
+          await supabase.rpc('end_login_session', {
+            p_session_id: this.currentSessionId
+          });
+        } catch (rpcError) {
+          console.warn('Could not end session in database:', rpcError);
+        }
       }
 
-      // Clear local session ID
-      await AsyncStorage.removeItem('current_session_id');
+      // Clear all stored authentication data
+      await this.clearStoredAuthData();
       this.currentSessionId = null;
 
       // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
       
-      if (error) throw error;
+      if (error) {
+        console.warn('Error signing out from Supabase:', error);
+        // Don't throw here as we've already cleared local data
+      }
 
       return { error: null };
     } catch (error) {
@@ -154,15 +439,28 @@ class LoginService {
   // Get current session ID
   async getCurrentSessionId() {
     if (!this.currentSessionId) {
-      this.currentSessionId = await AsyncStorage.getItem('current_session_id');
+      try {
+        this.currentSessionId = await AsyncStorage.getItem('current_session_id');
+      } catch (error) {
+        console.warn('Error getting session ID:', error);
+      }
     }
     return this.currentSessionId;
   }
 
   // Initialize session on app start (for existing users)
   async initializeSession() {
+    if (this.isInitialized) {
+      return;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) {
+        console.warn('Error getting user in initializeSession:', error);
+        return;
+      }
       
       if (user) {
         const storedSessionId = await AsyncStorage.getItem('current_session_id');
@@ -174,8 +472,44 @@ class LoginService {
           this.currentSessionId = storedSessionId;
         }
       }
+      
+      this.isInitialized = true;
     } catch (error) {
       console.error('Error initializing session:', error);
+    }
+  }
+
+  // Initialize session with stored authentication data
+  async initializeSessionWithStoredAuth() {
+    try {
+      const storedAuth = await this.getStoredAuthData();
+      
+      if (!storedAuth) {
+        return false;
+      }
+
+      // Check if stored auth is still valid
+      const isValid = await this.isStoredAuthValid();
+      
+      if (!isValid) {
+        return false;
+      }
+
+      // Initialize session with stored user data
+      const storedSessionId = await AsyncStorage.getItem('current_session_id');
+      
+      if (!storedSessionId) {
+        // Create new session for restored user
+        await this.recordLoginActivity(storedAuth.user.id);
+      } else {
+        this.currentSessionId = storedSessionId;
+      }
+
+      this.isInitialized = true;
+      return true;
+    } catch (error) {
+      console.error('Error initializing session with stored auth:', error);
+      return false;
     }
   }
 
@@ -191,171 +525,212 @@ class LoginService {
         .eq('session_id', sessionId)
         .single();
 
-      if (error || !data) return false;
+      if (error) {
+        console.warn('Error validating session:', error);
+        return false;
+      }
 
-      return data.is_current;
+      return data?.is_current || false;
     } catch (error) {
       console.error('Error validating session:', error);
       return false;
     }
   }
 
-  // End specific session
-  async endSession(sessionId) {
-    try {
-      const { error } = await supabase.rpc('end_login_session', {
-        p_session_id: sessionId
-      });
-
-      if (error) throw error;
-
-      // If ending current session, clear local storage
-      if (sessionId === this.currentSessionId) {
-        await AsyncStorage.removeItem('current_session_id');
-        this.currentSessionId = null;
-      }
-
-      return { error: null };
-    } catch (error) {
-      console.error('Error ending session:', error);
-      return { error };
-    }
-  }
-
-  // End all other sessions except current
-  async endAllOtherSessions() {
-    try {
-      const { data: activities, error } = await supabase
-        .from('login_activities')
-        .select('session_id')
-        .eq('is_current', true)
-        .neq('session_id', this.currentSessionId);
-
-      if (error) throw error;
-
-      if (activities && activities.length > 0) {
-        const promises = activities.map(activity => 
-          supabase.rpc('end_login_session', { p_session_id: activity.session_id })
-        );
-        
-        await Promise.all(promises);
-      }
-
-      return { error: null };
-    } catch (error) {
-      console.error('Error ending all other sessions:', error);
-      return { error };
-    }
-  }
-
-  // Get login activities for current user
-  async getLoginActivities(limit = 20) {
-    try {
-      const { data, error } = await supabase.rpc('get_user_login_activities', {
-        limit_count: limit
-      });
-
-      if (error) throw error;
-
-      return { data, error: null };
-    } catch (error) {
-      console.error('Error fetching login activities:', error);
-      return { data: null, error };
-    }
-  }
-
-  // Report suspicious activity
-  async reportSuspiciousActivity(activityId, reason = 'User reported as suspicious') {
-    try {
-      // You might want to create a separate table for reported activities
-      // For now, we'll just log it
-      console.log('Suspicious activity reported:', { activityId, reason });
-      
-      // Here you could send this to your backend for investigation
-      // or store it in a separate table
-      
-      return { error: null };
-    } catch (error) {
-      console.error('Error reporting suspicious activity:', error);
-      return { error };
-    }
-  }
-
   // Set up auth state listener
   setupAuthStateListener(callback) {
-    return supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        // Record login activity for automatic sign-ins (like refresh tokens)
-        const currentSessionId = await this.getCurrentSessionId();
-        if (!currentSessionId) {
-          await this.recordLoginActivity(session.user.id);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      try {
+        if (event === 'SIGNED_IN' && session?.user) {
+          // Record login activity for automatic sign-ins (like refresh tokens)
+          const currentSessionId = await this.getCurrentSessionId();
+          if (!currentSessionId) {
+            await this.recordLoginActivity(session.user.id);
+          }
+          
+          // Store authentication data
+          if (session.access_token) {
+            await this.storeAuthData(session.user, session.access_token);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          // Clean up session data
+          await this.clearStoredAuthData();
+          this.currentSessionId = null;
+          this.isInitialized = false;
         }
-      } else if (event === 'SIGNED_OUT') {
-        // Clean up session data
-        await AsyncStorage.removeItem('current_session_id');
-        this.currentSessionId = null;
-      }
-      
-      if (callback) {
-        callback(event, session);
+        
+        if (callback) {
+          callback(event, session);
+        }
+      } catch (error) {
+        console.error('Error in auth state listener:', error);
+        if (callback) {
+          callback(event, session);
+        }
       }
     });
+
+    return subscription;
+  }
+
+  // Additional utility methods for debugging
+  async getDebugInfo() {
+    if (!__DEV__) return {};
+    
+    try {
+      const [storedAuth, sessionId, currentUser] = await Promise.all([
+        this.getStoredAuthData(),
+        this.getCurrentSessionId(),
+        this.getCurrentUser()
+      ]);
+
+      return {
+        storedAuth: storedAuth ? { hasToken: !!storedAuth.token, hasUser: !!storedAuth.user } : null,
+        sessionId,
+        currentUser: currentUser ? { id: currentUser.id, email: currentUser.email } : null,
+        isInitialized: this.isInitialized
+      };
+    } catch (error) {
+      return { error: error.message };
+    }
   }
 }
 
 // Export singleton instance
 export const loginService = new LoginService();
 
-// Hook for easy access in components
+// Hook for easy access in components - Fixed version
 import { useState, useEffect } from 'react';
 
 export const useAuth = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     // Get initial session
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-      
-      if (session?.user) {
-        await loginService.initializeSession();
+      try {
+        setLoading(true);
+        setError(null);
+
+        // First, try to get current session from Supabase
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.warn('Error getting initial session:', sessionError);
+        }
+        
+        if (session?.user && isMounted) {
+          // Active session found
+          setSession(session);
+          setUser(session.user);
+          await loginService.initializeSession();
+        } else {
+          // No active session, check for stored authentication
+          const storedAuth = await loginService.getStoredAuthData();
+          
+          if (storedAuth && await loginService.isStoredAuthValid() && isMounted) {
+            console.log('Restoring authentication from stored data');
+            
+            // Try to restore session with stored data
+            const restored = await loginService.initializeSessionWithStoredAuth();
+            
+            if (restored && isMounted) {
+              setUser(storedAuth.user);
+              // Note: session might not be fully restored, but user data is available
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error getting initial session:', error);
+        if (isMounted) {
+          setError(error);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     getInitialSession();
 
     // Set up auth state listener
-    const { data: { subscription } } = loginService.setupAuthStateListener((event, session) => {
+    const subscription = loginService.setupAuthStateListener((event, session) => {
+      if (!isMounted) return;
+      
+      console.log('Auth state changed:', event);
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      setError(null);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+    };
   }, []);
+
+  // Enhanced refresh auth function
+  const refreshAuth = async (userData, token) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Restore authentication state
+      const success = await loginService.refreshAuth(userData, token);
+      
+      if (success) {
+        setUser(userData);
+        console.log('Authentication refreshed successfully');
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Error refreshing auth:', error);
+      setError(error);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const signIn = async (email, password) => {
     setLoading(true);
+    setError(null);
     const result = await loginService.signInWithEmail(email, password);
+    if (result.error) {
+      setError(result.error);
+    }
     setLoading(false);
     return result;
   };
 
   const signUp = async (email, password, additionalData) => {
     setLoading(true);
+    setError(null);
     const result = await loginService.signUpWithEmail(email, password, additionalData);
+    if (result.error) {
+      setError(result.error);
+    }
     setLoading(false);
     return result;
   };
 
   const signOut = async () => {
     setLoading(true);
+    setError(null);
     const result = await loginService.signOut();
+    if (result.error) {
+      setError(result.error);
+    }
+    setUser(null);
+    setSession(null);
     setLoading(false);
     return result;
   };
@@ -364,9 +739,11 @@ export const useAuth = () => {
     user,
     session,
     loading,
+    error,
     signIn,
     signUp,
     signOut,
+    refreshAuth,
     loginService
   };
 };

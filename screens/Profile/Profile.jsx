@@ -32,7 +32,6 @@ const ProfileScreen = ({ navigation }) => {
     bio: '',
     joinDate: 'March 2023',
     totalListeningTime: 0,
-    favoriteGenres: ['Technology', 'Business', 'Science'],
     subscriptions: 0,
     downloads: 0,
   });
@@ -238,8 +237,7 @@ const ProfileScreen = ({ navigation }) => {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      // Fallback navigation if no previous screen
-      navigation.navigate('Home'); // or whatever your main screen is called
+      navigation.navigate('Home');
     }
   };
 

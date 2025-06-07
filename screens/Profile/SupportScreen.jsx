@@ -103,10 +103,10 @@ const SupportScreen = ({ navigation }) => {
         Linking.openURL('mailto:support@podcastapp.com');
         break;
       case 'phone':
-        Linking.openURL('tel:+1-800-PODCAST');
+        Linking.openURL('tel:+233-2008-LEMAZ');
         break;
       case 'chat':
-        Alert.alert('Live Chat', 'Live chat is available Monday-Friday, 9 AM - 5 PM ');
+        navigation.navigate('LiveChatScreen');
         break;
     }
   };
