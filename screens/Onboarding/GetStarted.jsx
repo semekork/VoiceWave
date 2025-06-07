@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Entypo } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -186,6 +187,29 @@ const GetStarted = ({ onGetStarted }) => {
     
   }, []);
 
+  const handleGetStarted = async () => {
+    try {
+      // Mark onboarding as complete
+      await AsyncStorage.setItem('onboarding_complete', 'true');
+      
+      // Verify it was saved successfully
+      const saved = await AsyncStorage.getItem('onboarding_complete');
+      console.log('Onboarding completion saved:', saved);
+      
+      // Navigate to auth stack - this will trigger app state re-evaluation
+      // The root navigator will handle the transition properly
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: 'AuthStack' }], 
+      });
+      
+    } catch (error) {
+      console.error('Error completing onboarding:', error);
+      // Still navigate even if storage fails
+      navigation.navigate('AuthStack');
+    }
+  };
+
   return (
     <ImageBackground 
       source={require('../../assets/Onboarding/background_gs.png')} 
@@ -236,9 +260,7 @@ const GetStarted = ({ onGetStarted }) => {
           <Animated.View style={{ transform: [{ scale: pulseAnim }], width: '95%' }}>
             <TouchableOpacity 
               style={styles.button} 
-              onPress={() => {
-                navigation.navigate('AuthStack');
-              }}
+              onPress={handleGetStarted}
               activeOpacity={0.8}
             >
               <Text style={styles.buttonText}>Get Started</Text>
