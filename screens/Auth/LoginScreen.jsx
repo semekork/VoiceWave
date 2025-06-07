@@ -20,12 +20,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { SCREEN_NAMES } from '../../navigation/types';
-import { NavigationService } from '../../navigation/navigationHelpers';
-
-
+import { useAuth } from '../../services/loginService';
 
 const LoginScreen = () => {
   const navigation = useNavigation();
+  const { signIn, user, loading: authLoading, loginService } = useAuth();
   
   // Form state
   const [email, setEmail] = useState('');
@@ -35,6 +34,7 @@ const LoginScreen = () => {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -73,8 +73,8 @@ const LoginScreen = () => {
     }
   };
 
-  // Login handler with validation
-  const handleLogin = () => {
+  // Login handler using LoginService
+  const handleLogin = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     const isEmailValid = validateEmail(email);
@@ -83,14 +83,74 @@ const LoginScreen = () => {
     if (isEmailValid && isPasswordValid) {
       setIsLoading(true);
       
-      // Simulate API call
-      setTimeout(() => {
+      try {
+        const { data, error } = await signIn(email.trim(), password);
+
+        if (error) {
+          // Handle specific authentication errors
+          let errorMessage = 'Login failed. Please try again.';
+          
+          if (error.message.includes('Invalid login credentials')) {
+            errorMessage = 'Invalid email or password. Please check your credentials.';
+          } else if (error.message.includes('Email not confirmed')) {
+            errorMessage = 'Please verify your email address before logging in.';
+          } else if (error.message.includes('Too many requests')) {
+            errorMessage = 'Too many login attempts. Please try again later.';
+          } else if (error.message.includes('User not found')) {
+            errorMessage = 'No account found with this email address.';
+          }
+          
+          Alert.alert('Login Error', errorMessage);
+          console.error('Login error:', error);
+        } else if (data?.user) {
+          // Successful login - LoginService has already recorded the activity
+          console.log('Login successful:', data.user);
+          
+          // Get current session to verify it's active
+          const sessionId = await loginService.getCurrentSessionId();
+          console.log('Current session ID:', sessionId);
+          
+          // Navigation will be handled by the auth state listener in useAuth
+        }
+      } catch (error) {
+        console.error('Unexpected login error:', error);
+        Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      } finally {
         setIsLoading(false);
-        console.log('Logging in with:', email, password);
-        // Navigate to home screen on success
-        navigation.navigate('MainStack');
-      }, 1500);
+      }
     }
+  };
+
+  // Google Sign In - Enhanced with session tracking
+  const handleGoogleSignIn = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsGoogleLoading(true);
+    
+    try {
+      // Note: Google OAuth with session tracking would need additional implementation
+      // This is a placeholder for the enhanced functionality
+      Alert.alert(
+        'Google Sign In',
+        'Google Sign In with enhanced session tracking will be implemented based on your OAuth setup.',
+        [
+          {
+            text: 'OK',
+            style: 'default'
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Unexpected Google sign in error:', error);
+      Alert.alert('Error', 'An unexpected error occurred during Google sign in.');
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  // Password Reset
+  const handleForgotPassword = async () => {
+    Haptics.selectionAsync();
+    navigation.navigate('ForgotPasswordScreen');
   };
   
   // Toggle password visibility with haptic feedback
@@ -140,21 +200,37 @@ const LoginScreen = () => {
       })
     ]).start();
   }, []);
+
+  // Handle navigation based on auth state
+  useEffect(() => {
+    if (user && !authLoading) {
+      // User is authenticated, check if profile is complete
+      const checkProfileAndNavigate = async () => {
+        try {
+          // Here you would check if the user's profile is complete
+          // For now, we'll navigate to the main stack
+          navigation.navigate('MainStack');
+        } catch (error) {
+          console.error('Error checking profile:', error);
+          // Navigate anyway, let the app handle incomplete profiles
+          navigation.navigate('MainStack');
+        }
+      };
+
+      checkProfileAndNavigate();
+    }
+  }, [user, authLoading, navigation]);
   
   // Bio authentication handler
   const handleBioAuth = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       "Bio-Authentication",
-      "Would you like to use biometric authentication?",
+      "Biometric authentication will be available in a future update.",
       [
         {
-          text: "Cancel",
-          style: "cancel"
-        },
-        { 
-          text: "OK", 
-          onPress: () => console.log("Bio-auth initiated") 
+          text: "OK",
+          style: "default"
         }
       ]
     );
@@ -162,18 +238,18 @@ const LoginScreen = () => {
 
   // Show terms and conditions
   const showTermsAndConditions = () => {
-  Haptics.selectionAsync();
-  navigation.navigate(SCREEN_NAMES.TERMS, { 
-    showPrivacyPolicy: false 
-  });
-};
+    Haptics.selectionAsync();
+    navigation.navigate(SCREEN_NAMES.TERMS, { 
+      showPrivacyPolicy: false 
+    });
+  };
 
-const showPrivacyPolicy = () => {
-  Haptics.selectionAsync();
-  navigation.navigate(SCREEN_NAMES.TERMS, { 
-    showPrivacyPolicy: true 
-  });
-};
+  const showPrivacyPolicy = () => {
+    Haptics.selectionAsync();
+    navigation.navigate(SCREEN_NAMES.TERMS, { 
+      showPrivacyPolicy: true 
+    });
+  };
 
   return (
     <>
@@ -311,10 +387,7 @@ const showPrivacyPolicy = () => {
 
                 <View style={styles.forgotPasswordContainer}>
                   <TouchableOpacity 
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      navigation.navigate("ForgotPasswordScreen");
-                    }}
+                    onPress={handleForgotPassword}
                     accessibilityLabel="Forgot Password"
                     accessibilityRole="button"
                   >
@@ -354,19 +427,23 @@ const showPrivacyPolicy = () => {
                 <View style={styles.socialLoginContainer}>
                   <TouchableOpacity 
                     style={styles.googleButton}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      console.log('Google login initiated');
-                    }}
+                    onPress={handleGoogleSignIn}
+                    disabled={isGoogleLoading}
                     accessibilityLabel="Sign in with Google"
                     accessibilityRole="button"
                   >
-                    <Image 
-                      source={require("../../assets/Auth/google.png")} 
-                      style={styles.googleIcon}
-                      resizeMode="contain"
-                    />
-                    <Text style={styles.googleButtonText}>Sign in with Google</Text>
+                    {isGoogleLoading ? (
+                      <ActivityIndicator color="#333333" size="small" />
+                    ) : (
+                      <>
+                        <Image 
+                          source={require("../../assets/Auth/google.png")} 
+                          style={styles.googleIcon}
+                          resizeMode="contain"
+                        />
+                        <Text style={styles.googleButtonText}>Sign in with Google</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
                 </View>
                 
@@ -444,6 +521,17 @@ const styles = StyleSheet.create({
   },
   animatedContainer: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginTop: 16,
+    fontWeight: '500',
   },
   logoContainer: {
     flexDirection: 'row',
