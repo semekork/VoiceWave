@@ -8,8 +8,10 @@ export const SCREEN_NAMES = {
   LOGIN: 'LoginScreen',
   REGISTER: 'RegisterScreen',
   FORGOT_PASSWORD: 'ForgotPasswordScreen',
+  OTP: 'OTPScreen',
   SUCCESS: 'SuccessScreen',
   DELETE_ACCOUNT: 'DeleteAccountScreen',
+  LOGIN_ACTIVITY: 'LoginActivity',
   
   // Main Tabs
   HOME: 'HomeScreen',
