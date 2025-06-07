@@ -501,17 +501,6 @@ const ProfileScreen = ({ navigation }) => {
           />
         </View>
 
-        {/* Favorite Genres */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Favorite Genres</Text>
-          <View style={styles.genresContainer}>
-            {user.favoriteGenres.map((genre, index) => (
-              <View key={index} style={styles.genreTag}>
-                <Text style={styles.genreText}>{genre}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
 
         {/* Account Settings */}
         <View style={styles.section}>
