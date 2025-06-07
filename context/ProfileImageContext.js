@@ -9,8 +9,8 @@ const ProfileImageContext = createContext();
 const PROFILE_IMAGE_KEY = '@profile_image';
 const DEFAULT_PROFILE_IMAGES = {
   // Different defaults for different screens
-  profile: require('../assets/Logo/Logo.png'), 
-  avatar: require('../assets/Logo/Logo.png'),
+  profile: require('../assets/blankpp.png'), 
+  avatar: require('../assets/blankpp.png'),
 };
 
 export const ProfileImageProvider = ({ children }) => {
