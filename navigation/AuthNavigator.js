@@ -7,6 +7,7 @@ import { SCREEN_NAMES, NAVIGATION_CONFIG } from "./types";
 import LoginScreen from "../screens/Auth/LoginScreen";
 import RegisterScreen from "../screens/Auth/RegisterScreen";
 import ForgotPasswordScreen from "../screens/Auth/ForgotPasswordScreen";
+import OTPVerificationScreen from "../screens/Auth/OTPverification";
 import SuccessScreen from "../screens/Auth/SuccessScreen";
 
 
@@ -40,6 +41,14 @@ export const AuthNavigator = () => {
       <Stack.Screen 
         name={SCREEN_NAMES.FORGOT_PASSWORD} 
         component={ForgotPasswordScreen} 
+        options={{ 
+          animation: 'slide_from_right',
+          gestureEnabled: true 
+        }}
+      />
+      <Stack.Screen 
+        name={SCREEN_NAMES.OTP} 
+        component={OTPVerificationScreen} 
         options={{ 
           animation: 'slide_from_right',
           gestureEnabled: true 
