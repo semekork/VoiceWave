@@ -187,13 +187,13 @@ const SuccessScreen = () => {
         Animated.timing(circle1Anim, {
           toValue: 1,
           duration: 4000,
-          easing: Easing.inOut(Easing.ease),
+          easing: Easing.inOut(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(circle1Anim, {
           toValue: 0,
           duration: 4000,
-          easing: Easing.inOut(Easing.ease),
+          easing: Easing.inOut(Easing.cubic),
           useNativeDriver: true,
         }),
       ])
@@ -205,18 +205,18 @@ const SuccessScreen = () => {
         Animated.timing(circle2Anim, {
           toValue: 1,
           duration: 6000,
-          easing: Easing.inOut(Easing.ease),
+          easing: Easing.inOut(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(circle2Anim, {
           toValue: 0,
           duration: 6000,
-          easing: Easing.inOut(Easing.ease),
+          easing: Easing.inOut(Easing.cubic),
           useNativeDriver: true,
         }),
       ])
     ).start();
-
+    
     // Circle 3 animation - floating in a circular pattern
     Animated.loop(
       Animated.timing(circle3Anim, {
@@ -252,7 +252,7 @@ const SuccessScreen = () => {
     
     // Navigate after a slight delay for animation
     setTimeout(() => {
-      navigation.navigate("LoginScreen");
+      navigation.navigate("MainStack");
     }, 100);
   };
 
@@ -440,13 +440,13 @@ const SuccessScreen = () => {
                   <View style={styles.stepNumberCircle}>
                     <Text style={styles.stepNumber}>1</Text>
                   </View>
-                  <Text style={styles.stepText}>Log in to your new account</Text>
+                  <Text style={styles.stepText}>Continue to Login</Text>
                 </View>
                 <View style={styles.nextStepItem}>
                   <View style={styles.stepNumberCircle}>
                     <Text style={styles.stepNumber}>2</Text>
                   </View>
-                  <Text style={styles.stepText}>Complete your profile information</Text>
+                  <Text style={styles.stepText}>Complete your profile information </Text>
                 </View>
                 <View style={styles.nextStepItem}>
                   <View style={styles.stepNumberCircle}>
