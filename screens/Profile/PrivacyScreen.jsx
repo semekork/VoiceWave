@@ -161,12 +161,6 @@ const PrivacyScreen = ({ navigation }) => {
             showToggle={false}
             onPress={() => navigation.navigate('LoginActivity')}
           />
-          <MenuItem
-            title="Connected Apps"
-            subtitle="Manage third-party app connections"
-            showToggle={false}
-            onPress={() => navigation.navigate('ConnectedApps')}
-          />
         </Section>
 
         <Section title="Data Management">
