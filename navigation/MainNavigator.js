@@ -19,6 +19,7 @@ import PodcastDetailScreen from "../screens/Details/PodcastDetailsScreen";
 import EqualizerScreen from "../components/Equalizer";
 import DeleteAccountScreen from "../screens/Auth/DeleteAccount";
 import GoodbyeScreen from "../screens/Profile/GoodbyeScreen";
+import LoginActivity from "../screens/Auth/LoginActivity";
 
 const Stack = createNativeStackNavigator();
 
@@ -165,6 +166,14 @@ const MainNavigator = () => {
           options={{
             animation: 'slide_from_bottom',
             gestureDirection: 'vertical',
+          }}
+        />
+        <Stack.Screen 
+          name={SCREEN_NAMES.LOGIN_ACTIVITY} 
+          component={LoginActivity}
+          options={{
+            animation: 'slide_from_right',
+            gestureDirection: 'horizontal',
           }}
         />
       </Stack.Group>
