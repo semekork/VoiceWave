@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,25 +14,27 @@ import {
   Switch,
   Share,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
-import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useProfileImage } from '../../context/ProfileImageContext';
 import { getAdaptiveGradientColors } from '../../utils/colorExtractor';
+import { supabase } from '../../lib/supabase';
 
 const { width, height } = Dimensions.get('window');
 
 const ProfileScreen = ({ navigation }) => {
   const [user, setUser] = useState({
-    name: 'Caleb Semekor',
-    email: 'caleb.dussey04@gmail.com',
-    bio: 'Podcast enthusiast • Car funatic • Tech geek',
+    name: '',
+    email: '',
+    bio: '',
     joinDate: 'March 2023',
-    totalListeningTime: '124',
+    totalListeningTime: 0,
     favoriteGenres: ['Technology', 'Business', 'Science'],
-    subscriptions: 47,
-    downloads: 156,
+    subscriptions: 0,
+    downloads: 0,
   });
 
   const [settings, setSettings] = useState({
@@ -43,6 +45,10 @@ const ProfileScreen = ({ navigation }) => {
   });
 
   const [gradientColors, setGradientColors] = useState(['#9C3141', '#262726']);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [userLoading, setUserLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Use the profile image context
   const {
@@ -70,6 +76,164 @@ const ProfileScreen = ({ navigation }) => {
     extrapolate: 'clamp',
   });
 
+  // Fetch user data from Supabase
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  const fetchUserData = async () => {
+    try {
+      setUserLoading(true);
+      
+      // Get current user
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        throw authError;
+      }
+
+      if (authUser) {
+        setCurrentUserId(authUser.id);
+        
+        // Get user profile data
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .single();
+
+        if (profileError && profileError.code !== 'PGRST116') {
+          console.error('Error fetching profile:', profileError);
+        }
+
+        // Format join date
+        const joinDate = authUser.created_at 
+          ? new Date(authUser.created_at).toLocaleDateString('en-US', { 
+              year: 'numeric', 
+              month: 'long' 
+            })
+          : 'Recently';
+
+        // Format listening time (convert minutes to hours)
+        const listeningHours = profile?.total_listening_time 
+          ? Math.round(profile.total_listening_time / 60) 
+          : 0;
+
+        // Update user state with Supabase data
+        setUser(prevUser => ({
+          ...prevUser,
+          name: profile?.full_name || 
+                authUser.user_metadata?.full_name || 
+                authUser.email?.split('@')[0] || 
+                'User',
+          email: authUser.email || '',
+          bio: profile?.bio || prevUser.bio,
+          joinDate: joinDate,
+          totalListeningTime: listeningHours,
+          subscriptions: profile?.subscriptions_count || 0,
+          downloads: profile?.downloads_count || 0,
+          favoriteGenres: profile?.favorite_genres || prevUser.favoriteGenres,
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      Alert.alert('Error', 'Failed to load user data. Please try again.');
+    } finally {
+      setUserLoading(false);
+    }
+  };
+
+  // Real-time subscription for profile updates
+  useEffect(() => {
+    let subscription;
+
+    const setupRealtimeSubscription = async () => {
+      if (!currentUserId) return;
+
+      try {
+        console.log('Setting up real-time subscription for user:', currentUserId);
+        
+        // Set up real-time subscription for profile changes
+        subscription = supabase
+          .channel(`profile_changes_${currentUserId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'profiles',
+              filter: `id=eq.${currentUserId}`,
+            },
+            (payload) => {
+              console.log('Profile updated via real-time:', payload);
+              
+              // Update the local state with the new data
+              const updatedProfile = payload.new;
+              
+              setUser(prevUser => ({
+                ...prevUser,
+                name: updatedProfile.display_name || 
+                      updatedProfile.full_name || 
+                      prevUser.name,
+                bio: updatedProfile.bio || prevUser.bio,
+                totalListeningTime: updatedProfile.total_listening_time 
+                  ? Math.round(updatedProfile.total_listening_time / 60) 
+                  : prevUser.totalListeningTime,
+                subscriptions: updatedProfile.subscriptions_count || prevUser.subscriptions,
+                downloads: updatedProfile.downloads_count || prevUser.downloads,
+                favoriteGenres: updatedProfile.favorite_genres || prevUser.favoriteGenres,
+              }));
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'profiles',
+              filter: `id=eq.${currentUserId}`,
+            },
+            (payload) => {
+              console.log('Profile created via real-time:', payload);
+              // Handle new profile creation (in case profile was created after user registration)
+              fetchUserData();
+            }
+          )
+          .subscribe((status) => {
+            console.log('Real-time subscription status:', status);
+          });
+
+      } catch (error) {
+        console.error('Error setting up real-time subscription:', error);
+      }
+    };
+
+    setupRealtimeSubscription();
+
+    // Cleanup subscription on unmount or when currentUserId changes
+    return () => {
+      if (subscription) {
+        console.log('Cleaning up real-time subscription');
+        supabase.removeChannel(subscription);
+      }
+    };
+  }, [currentUserId]);
+
+  // Clear error when component mounts or when error changes
+  useEffect(() => {
+    if (error) {
+      Alert.alert('Error', error, [
+        { text: 'OK', onPress: clearError }
+      ]);
+    }
+  }, [error]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchUserData();
+    setRefreshing(false);
+  }, []);
+
   const handleBackPress = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
@@ -80,7 +244,7 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   // Update gradient colors when profile image changes
-  React.useEffect(() => {
+  useEffect(() => {
     const updateGradientColors = async () => {
       try {
         const displayImage = getProfileScreenImage();
@@ -157,8 +321,9 @@ const ProfileScreen = ({ navigation }) => {
 
   const handleShare = async () => {
     try {
+      const hoursText = user.totalListeningTime === 1 ? 'hour' : 'hours';
       await Share.share({
-        message: `Check out my podcast listening stats! I've listened to ${user.totalListeningTime} hours of amazing content.`,
+        message: `Check out my podcast listening stats! I've listened to ${user.totalListeningTime} ${hoursText} of amazing content and subscribed to ${user.subscriptions} podcasts.`,
       });
     } catch (error) {
       console.error('Error sharing:', error);
@@ -174,20 +339,37 @@ const ProfileScreen = ({ navigation }) => {
         { 
           text: 'Sign Out', 
           style: 'destructive', 
-          onPress: () => navigation.navigate('AuthStack')
+          onPress: performSignOut
         },
       ]
     );
   };
 
-  // Clear error when component mounts or when error changes
-  React.useEffect(() => {
-    if (error) {
-      Alert.alert('Error', error, [
-        { text: 'OK', onPress: clearError }
-      ]);
+  const performSignOut = async () => {
+    try {
+      setIsSigningOut(true);
+      
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        throw error;
+      }
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'AuthStack' }],
+      });
+      
+    } catch (error) {
+      console.error('Error signing out:', error);
+      Alert.alert(
+        'Sign Out Error', 
+        'Failed to sign out. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsSigningOut(false);
     }
-  }, [error]);
+  };
 
   const StatCard = ({ title, value, icon, color = '#007AFF' }) => (
     <View style={styles.statCard}>
@@ -254,6 +436,14 @@ const ProfileScreen = ({ navigation }) => {
           { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#9C3141"
+            colors={["#9C3141"]}
+          />
+        }
       >
         {/* Profile Header */}
         <LinearGradient
@@ -273,9 +463,15 @@ const ProfileScreen = ({ navigation }) => {
             </TouchableOpacity>
           </Animated.View>
           
-          <Text style={styles.userName}>{user.name}</Text>
-          <Text style={styles.userBio}>{user.bio}</Text>
-          <Text style={styles.joinDate}>Member since {user.joinDate}</Text>
+          {userLoading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" style={{ marginBottom: 16 }} />
+          ) : (
+            <>
+              <Text style={styles.userName}>{user.name}</Text>
+              <Text style={styles.userBio}>{user.bio}</Text>
+              <Text style={styles.joinDate}>Member since {user.joinDate}</Text>
+            </>
+          )}
           
           <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
             <Ionicons name="share-outline" size={20} color="#FFFFFF" />
@@ -286,20 +482,20 @@ const ProfileScreen = ({ navigation }) => {
         {/* Stats Section */}
         <View style={styles.statsContainer}>
           <StatCard
-            title="Listening Time"
-            value={user.totalListeningTime}
+            title="Hours"
+            value={user.totalListeningTime.toString()}
             icon="headset-outline"
             color="#FF6B6B"
           />
           <StatCard
             title="Subscriptions"
-            value={user.subscriptions}
+            value={user.subscriptions.toString()}
             icon="radio-outline"
             color="#4ECDC4"
           />
           <StatCard
             title="Downloads"
-            value={user.downloads}
+            value={user.downloads.toString()}
             icon="download-outline"
             color="#45B7D1"
           />
@@ -399,8 +595,16 @@ const ProfileScreen = ({ navigation }) => {
         </View>
 
         {/* Sign Out Button */}
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Text style={styles.signOutText}>Sign Out</Text>
+        <TouchableOpacity 
+          style={[styles.signOutButton, isSigningOut && styles.signOutButtonDisabled]} 
+          onPress={handleSignOut}
+          disabled={isSigningOut}
+        >
+          {isSigningOut ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.signOutText}>Sign Out</Text>
+          )}
         </TouchableOpacity>
 
         <View style={{ height: 50 }} />
@@ -647,6 +851,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
+  },
+  signOutButtonDisabled: {
+    opacity: 0.6,
   },
   signOutText: {
     color: '#FFFFFF',
