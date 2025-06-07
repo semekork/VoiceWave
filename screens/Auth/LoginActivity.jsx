@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useLoginActivity } from '../../hooks/useLoginActivity';
 import { getDeviceIcon } from '../../utils/deviceUtils';
+import { supabase } from '../../lib/supabase';
 
 const LoginActivityScreen = ({ navigation }) => {
   const {
@@ -21,8 +22,6 @@ const LoginActivityScreen = ({ navigation }) => {
     loading,
     error,
     refresh,
-    endSession,
-    endAllOtherSessions
   } = useLoginActivity();
   
   const [refreshing, setRefreshing] = useState(false);
@@ -35,6 +34,31 @@ const LoginActivityScreen = ({ navigation }) => {
       console.error('Error refreshing:', err);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleEndSession = async (sessionId) => {
+    try {
+      // Use your existing end_login_session function
+      const { data, error } = await supabase
+        .rpc('end_login_session', { p_session_id: sessionId });
+
+      if (error) {
+        throw error;
+      }
+
+      // Check if the session was found and ended
+      if (!data) {
+        throw new Error('Session not found or already ended');
+      }
+
+      // Refresh the login activities list after ending session
+      await refresh();
+
+      return true;
+    } catch (error) {
+      console.error('Error ending session:', error);
+      throw error;
     }
   };
 
@@ -52,9 +76,10 @@ const LoginActivityScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await endSession(sessionId);
+              await handleEndSession(sessionId);
               Alert.alert('Success', 'Session ended successfully');
             } catch (err) {
+              console.error('Error:', err.message);
               Alert.alert('Error', 'Failed to end session. Please try again.');
             }
           },
@@ -63,23 +88,42 @@ const LoginActivityScreen = ({ navigation }) => {
     );
   };
 
-  const handleEndAllSessions = () => {
+  const handleEndAllSessions = async () => {
     Alert.alert(
-      'Secure Account',
-      'End all sessions except this one? You\'ll need to log in again on other devices.',
+      'End All Other Sessions',
+      'Are you sure you want to end all other active sessions?',
       [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'End All Sessions', 
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'End All',
           style: 'destructive',
           onPress: async () => {
             try {
-              await endAllOtherSessions();
+              // Get current session ID
+              const { data: { session } } = await supabase.auth.getSession();
+              const currentSessionId = session?.access_token;
+
+              // Update all other sessions to not current
+              const { data, error } = await supabase
+                .from('login_activities')
+                .update({ is_current: false })
+                .eq('is_current', true)
+                .neq('session_id', currentSessionId);
+
+              if (error) throw error;
+
+              // Refresh the login activities list
+              await refresh();
+
               Alert.alert('Success', 'All other sessions have been ended');
             } catch (err) {
+              console.error('Error:', err.message);
               Alert.alert('Error', 'Failed to end sessions. Please try again.');
             }
-          }
+          },
         },
       ]
     );
@@ -99,10 +143,24 @@ const LoginActivityScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Here you would typically call an API to report the suspicious activity
-              // For now, we'll just show a success message
+              // Update the activity to mark as suspicious
+              const { error } = await supabase
+                .from('login_activities')
+                .update({ 
+                  device_info: supabase.raw(`
+                    COALESCE(device_info, '{}'::jsonb) || '{"suspicious": true, "reported_at": "${new Date().toISOString()}"}'::jsonb
+                  `)
+                })
+                .eq('id', activityId);
+
+              if (error) throw error;
+
+              // Refresh the activities
+              await refresh();
+
               Alert.alert('Reported', 'Thank you for reporting. We\'ll investigate this activity.');
             } catch (err) {
+              console.error('Error reporting activity:', err);
               Alert.alert('Error', 'Failed to report activity. Please try again.');
             }
           },
@@ -111,77 +169,139 @@ const LoginActivityScreen = ({ navigation }) => {
     );
   };
 
-  const LoginItem = ({ activity }) => (
-    <View style={[styles.loginItem, activity.suspicious && styles.suspiciousItem]}>
-      <View style={styles.loginHeader}>
-        <View style={styles.deviceInfo}>
-          <View style={[styles.deviceIconContainer, activity.current && styles.currentDevice]}>
-            <Ionicons 
-              name={getDeviceIcon(activity.device)} 
-              size={20} 
-              color={activity.current ? '#FFFFFF' : '#9C3141'} 
-            />
-          </View>
-          <View style={styles.deviceDetails}>
-            <View style={styles.deviceNameRow}>
-              <Text style={styles.deviceName}>{activity.device}</Text>
-              {activity.current && (
-                <View style={styles.currentBadge}>
-                  <Text style={styles.currentBadgeText}>Current</Text>
-                </View>
-              )}
-              {activity.suspicious && (
-                <View style={styles.suspiciousBadge}>
-                  <Ionicons name="warning" size={12} color="#D70015" />
-                  <Text style={styles.suspiciousBadgeText}>Suspicious</Text>
-                </View>
-              )}
+  const formatLocation = (location) => {
+    if (!location) return 'Unknown Location';
+    
+    try {
+      if (typeof location === 'string') {
+        return location;
+      }
+      
+      if (location.city && location.country) {
+        return `${location.city}, ${location.country}`;
+      }
+      
+      if (location.country) {
+        return location.country;
+      }
+      
+      return 'Unknown Location';
+    } catch (e) {
+      return 'Unknown Location';
+    }
+  };
+
+  const getDeviceDisplayName = (deviceInfo) => {
+    if (!deviceInfo) return 'Unknown Device';
+    
+    try {
+      const info = typeof deviceInfo === 'string' ? JSON.parse(deviceInfo) : deviceInfo;
+      return info.device_type || 'Unknown Device';
+    } catch (e) {
+      return 'Unknown Device';
+    }
+  };
+
+  const getBrowserName = (deviceInfo) => {
+    if (!deviceInfo) return 'Unknown Browser';
+    
+    try {
+      const info = typeof deviceInfo === 'string' ? JSON.parse(deviceInfo) : deviceInfo;
+      return info.browser || 'Unknown Browser';
+    } catch (e) {
+      return 'Unknown Browser';
+    }
+  };
+
+  const isSuspicious = (deviceInfo) => {
+    if (!deviceInfo) return false;
+    
+    try {
+      const info = typeof deviceInfo === 'string' ? JSON.parse(deviceInfo) : deviceInfo;
+      return info.suspicious === true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const LoginItem = ({ activity }) => {
+    const deviceName = getDeviceDisplayName(activity.device_info);
+    const browserName = getBrowserName(activity.device_info);
+    const suspicious = isSuspicious(activity.device_info);
+    const location = formatLocation(activity.location);
+
+    return (
+      <View style={[styles.loginItem, suspicious && styles.suspiciousItem]}>
+        <View style={styles.loginHeader}>
+          <View style={styles.deviceInfo}>
+            <View style={[styles.deviceIconContainer, activity.is_current && styles.currentDevice]}>
+              <Ionicons 
+                name={getDeviceIcon(deviceName)} 
+                size={20} 
+                color={activity.is_current ? '#FFFFFF' : '#9C3141'} 
+              />
             </View>
-            <Text style={styles.deviceLocation}>{activity.location}</Text>
-            <Text style={styles.deviceTime}>{activity.time}</Text>
+            <View style={styles.deviceDetails}>
+              <View style={styles.deviceNameRow}>
+                <Text style={styles.deviceName}>{deviceName}</Text>
+                {activity.is_current && (
+                  <View style={styles.currentBadge}>
+                    <Text style={styles.currentBadgeText}>Current</Text>
+                  </View>
+                )}
+                {suspicious && (
+                  <View style={styles.suspiciousBadge}>
+                    <Ionicons name="warning" size={12} color="#D70015" />
+                    <Text style={styles.suspiciousBadgeText}>Suspicious</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.deviceLocation}>{location}</Text>
+              <Text style={styles.deviceTime}>{activity.time_ago}</Text>
+            </View>
           </View>
+          
+          {!activity.is_current && activity.session_id && (
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => handleLogoutDevice(activity.session_id, deviceName)}
+            >
+              <Ionicons name="log-out-outline" size={18} color="#D70015" />
+            </TouchableOpacity>
+          )}
         </View>
         
-        {!activity.current && activity.sessionId && (
+        <View style={styles.loginDetails}>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>IP Address:</Text>
+            <Text style={styles.detailValue}>{activity.ip_address || 'Unknown'}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Browser:</Text>
+            <Text style={styles.detailValue}>{browserName}</Text>
+          </View>
+          {activity.session_id && (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Session ID:</Text>
+              <Text style={styles.detailValue} numberOfLines={1}>
+                {activity.session_id.substring(0, 20)}...
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {!suspicious && !activity.is_current && (
           <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => handleLogoutDevice(activity.sessionId, activity.device)}
+            style={styles.reportButton}
+            onPress={() => handleReportSuspicious(activity.id, deviceName)}
           >
-            <Ionicons name="log-out-outline" size={18} color="#D70015" />
+            <Ionicons name="flag-outline" size={16} color="#D70015" />
+            <Text style={styles.reportButtonText}>Report as Suspicious</Text>
           </TouchableOpacity>
         )}
       </View>
-      
-      <View style={styles.loginDetails}>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>IP Address:</Text>
-          <Text style={styles.detailValue}>{activity.ip}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Browser:</Text>
-          <Text style={styles.detailValue}>{activity.browser}</Text>
-        </View>
-        {activity.sessionId && (
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Session ID:</Text>
-            <Text style={styles.detailValue} numberOfLines={1}>
-              {activity.sessionId.substring(0, 20)}...
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {activity.suspicious && (
-        <TouchableOpacity 
-          style={styles.reportButton}
-          onPress={() => handleReportSuspicious(activity.id, activity.device)}
-        >
-          <Ionicons name="flag-outline" size={16} color="#D70015" />
-          <Text style={styles.reportButtonText}>Report as Suspicious</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
+    );
+  };
 
   if (loading && !refreshing) {
     return (
