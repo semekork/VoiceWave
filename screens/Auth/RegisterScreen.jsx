@@ -19,6 +19,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { supabase } from '../../lib/supabase'; 
 
 const RegisterScreen = ({ navigation }) => {
   // Form state
@@ -183,7 +184,7 @@ const RegisterScreen = ({ navigation }) => {
     return isValid;
   };
   
-  // Handle sign up
+  // Handle sign up with Supabase
   const handleSignUp = async () => {
     Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -199,7 +200,6 @@ const RegisterScreen = ({ navigation }) => {
     
     setIsSubmitting(true);
     
-    // Simulate API call
     try {
       // Button press animation
       Animated.sequence([
@@ -207,13 +207,64 @@ const RegisterScreen = ({ navigation }) => {
         Animated.timing(buttonScale, { toValue: 1, duration: 100, useNativeDriver: true }),
       ]).start();
       
-      // Simulate network request
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Sign up with Supabase
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password: password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+          }
+        }
+      });
+
+      if (error) {
+        console.error('Supabase signup error:', error);
+        
+        // Handle specific error cases
+        if (error.message.includes('User already registered')) {
+          Alert.alert(
+            'Account Exists', 
+            'An account with this email already exists. Please sign in instead.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Sign In', onPress: () => navigation.navigate('LoginScreen') }
+            ]
+          );
+        } else if (error.message.includes('Invalid email')) {
+          Alert.alert('Invalid Email', 'Please enter a valid email address.');
+        } else if (error.message.includes('Password')) {
+          Alert.alert('Password Error', 'Password must be at least 6 characters long.');
+        } else {
+          Alert.alert('Registration Error', error.message || 'Failed to create account. Please try again.');
+        }
+        return;
+      }
+
+      if (data?.user) {
+        console.log('User created successfully:', data.user);
+        
+        // Check if email confirmation is required
+        if (data.user && !data.session) {
+          Alert.alert(
+            'Check Your Email',
+            'We\'ve sent you a confirmation link. Please check your email and click the link to verify your account.',
+            [
+              { 
+                text: 'OK', 
+                onPress: () => navigation.navigate('LoginScreen')
+              }
+            ]
+          );
+        } else {
+          // User is automatically signed in
+          navigation.navigate("SuccessScreen");
+        }
+      }
       
-      console.log('Signing up with:', fullName, email, password);
-      navigation.navigate("SuccessScreen");
     } catch (error) {
-      Alert.alert('Error', 'Failed to create account. Please try again.');
+      console.error('Unexpected error:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -228,12 +279,7 @@ const RegisterScreen = ({ navigation }) => {
     }
   }, [password]);
 
-  // Handle Google Sign Up
-  const handleGoogleSignUp = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    console.log('Google sign up initiated');
-    // Implement Google sign up functionality
-  };
+
 
   // Show terms and conditions
   const showTermsAndConditions = () => {
@@ -506,29 +552,7 @@ const RegisterScreen = ({ navigation }) => {
                       </LinearGradient>
                     </Animated.View>
                   </TouchableOpacity>
-                  
-                  <View style={styles.dividerContainer}>
-                    <View style={styles.divider} />
-                    <Text style={styles.dividerText}>Or Sign Up with</Text>
-                    <View style={styles.divider} />
-                  </View>
-                  
-                  <View style={styles.socialLoginContainer}>
-                    <TouchableOpacity 
-                      style={styles.googleButton}
-                      onPress={handleGoogleSignUp}
-                      accessibilityLabel="Sign up with Google"
-                      accessibilityRole="button"
-                    >
-                      <Image 
-                        source={require("../../assets/Auth/google.png")} 
-                        style={styles.googleIcon}
-                        resizeMode="contain"
-                      />
-                      <Text style={styles.googleButtonText}>Sign up with Google</Text>
-                    </TouchableOpacity>
-                  </View>
-                  
+
                   <View style={styles.signInContainer}>
                     <Text style={styles.signInText}>Already have an account? </Text>
                     <TouchableOpacity
@@ -731,48 +755,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  dividerText: {
-    color: '#FFFFFF',
-    marginHorizontal: 10,
-    fontSize: 14,
-  },
-  socialLoginContainer: {
-    marginBottom: 24,
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  googleIcon: {
-    width: 24,
-    height: 24,
-    marginRight: 10,
-  },
-  googleButtonText: {
-    color: '#333333',
-    fontSize: 16,
-    fontWeight: '500',
   },
   signInContainer: {
     flexDirection: 'row',
