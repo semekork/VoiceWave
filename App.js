@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ImageBackground, SafeAreaView, Image, Text } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Navigation
@@ -142,7 +142,7 @@ const useAppState = () => {
 
 // Main App Component with Enhanced State Management
 function AppContent() {
-  const navigationRef = useRef();
+  const navigationRef = React.useRef(null);
   const { appState, initialRoute, error, isReady, refreshAppState } = useAppState();
 
   // Initialize navigation service
@@ -162,14 +162,24 @@ function AppContent() {
   // Show loading screen while determining app state
   if (!isReady) {
     return (
-      <View style={{ 
-        flex: 1, 
-        backgroundColor: '#1E1E1E', 
-        justifyContent: 'center', 
-        alignItems: 'center' 
-      }}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
+      <ImageBackground source={require('./assets/Onboarding/background.png')} style={{position: 'absolute',top: 0,left: 0,right: 0,bottom: 0,zIndex: -1,}}>
+          <SafeAreaView style={{flex: 1, position: 'relative'}}>
+            {/* Main content */}
+            <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+              {/* Logo */}
+              <View style={{alignItems: 'center'}}>
+                  <Image source={require('./assets/Logo/Logo.png')} style={{width: 310,height: 210,marginBottom: 20,}}/>
+              </View>
+            </View>
+            
+            {/* Footer */}
+            <View style={{alignItems: 'center',paddingBottom: 40,}}>
+              <Text style={{color: 'white',fontSize: 16,opacity: 0.9,}}>Designed & Developed by</Text>
+              <Text style={{color: 'white',fontSize: 16,opacity: 0.9,}}>Caleb</Text>
+            </View>
+          </SafeAreaView>
+          </ImageBackground>
+      
     );
   }
 
