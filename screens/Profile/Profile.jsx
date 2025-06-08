@@ -49,16 +49,19 @@ const ProfileScreen = ({ navigation }) => {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Use the profile image context
+  // Enhanced profile image context usage
   const {
     profileImage,
-    loading,
-    error,
+    loading: imageLoading,
+    error: imageError,
+    initialized: imageInitialized,
     pickImageFromGallery,
     takePhotoWithCamera,
     removeProfileImage,
-    clearError,
+    clearError: clearImageError,
+    refreshProfileImage,
     getProfileScreenImage,
+    getShareableImageUrl,
     hasCustomProfileImage,
   } = useProfileImage();
 
@@ -182,6 +185,9 @@ const ProfileScreen = ({ navigation }) => {
                 downloads: updatedProfile.downloads_count || prevUser.downloads,
                 favoriteGenres: updatedProfile.favorite_genres || prevUser.favoriteGenres,
               }));
+
+              // Refresh profile image when profile updates
+              refreshProfileImage();
             }
           )
           .on(
@@ -196,6 +202,7 @@ const ProfileScreen = ({ navigation }) => {
               console.log('Profile created via real-time:', payload);
               // Handle new profile creation (in case profile was created after user registration)
               fetchUserData();
+              refreshProfileImage();
             }
           )
           .subscribe((status) => {
@@ -216,22 +223,31 @@ const ProfileScreen = ({ navigation }) => {
         supabase.removeChannel(subscription);
       }
     };
-  }, [currentUserId]);
+  }, [currentUserId, refreshProfileImage]);
 
-  // Clear error when component mounts or when error changes
+  // Enhanced error handling for profile image errors
   useEffect(() => {
-    if (error) {
-      Alert.alert('Error', error, [
-        { text: 'OK', onPress: clearError }
+    if (imageError) {
+      Alert.alert('Profile Image Error', imageError, [
+        { text: 'OK', onPress: clearImageError }
       ]);
     }
-  }, [error]);
+  }, [imageError, clearImageError]);
 
+  // Enhanced refresh function that includes profile image refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchUserData();
-    setRefreshing(false);
-  }, []);
+    try {
+      await Promise.all([
+        fetchUserData(),
+        refreshProfileImage()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshProfileImage]);
 
   const handleBackPress = () => {
     if (navigation.canGoBack()) {
@@ -241,13 +257,13 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  // Update gradient colors when profile image changes
+  // Enhanced gradient color update with better error handling
   useEffect(() => {
     const updateGradientColors = async () => {
       try {
         const displayImage = getProfileScreenImage();
         // Only extract colors if it's a custom image (has uri property)
-        if (displayImage.uri) {
+        if (displayImage.uri && hasCustomProfileImage()) {
           const colors = await getAdaptiveGradientColors(displayImage.uri);
           setGradientColors(colors);
         } else {
@@ -260,10 +276,16 @@ const ProfileScreen = ({ navigation }) => {
       }
     };
 
-    updateGradientColors();
-  }, [profileImage]);
+    // Only update colors if image context is initialized
+    if (imageInitialized) {
+      updateGradientColors();
+    }
+  }, [profileImage, imageInitialized, getProfileScreenImage, hasCustomProfileImage]);
 
+  // Enhanced image picker with loading states
   const handleImagePicker = () => {
+    if (imageLoading) return; // Prevent multiple simultaneous operations
+
     Alert.alert(
       'Change Profile Photo',
       'Choose an option',
@@ -274,7 +296,8 @@ const ProfileScreen = ({ navigation }) => {
             try {
               await takePhotoWithCamera();
             } catch (error) {
-              Alert.alert('Error', 'Failed to take photo. Please try again.');
+              console.error('Camera error:', error);
+              Alert.alert('Camera Error', 'Failed to take photo. Please check camera permissions and try again.');
             }
           }
         },
@@ -284,7 +307,8 @@ const ProfileScreen = ({ navigation }) => {
             try {
               await pickImageFromGallery();
             } catch (error) {
-              Alert.alert('Error', 'Failed to pick image. Please try again.');
+              console.error('Gallery error:', error);
+              Alert.alert('Gallery Error', 'Failed to pick image. Please check gallery permissions and try again.');
             }
           }
         },
@@ -304,6 +328,7 @@ const ProfileScreen = ({ navigation }) => {
                     try {
                       await removeProfileImage();
                     } catch (error) {
+                      console.error('Remove photo error:', error);
                       Alert.alert('Error', 'Failed to remove photo. Please try again.');
                     }
                   }
@@ -317,14 +342,28 @@ const ProfileScreen = ({ navigation }) => {
     );
   };
 
+  // Enhanced share function with profile image
   const handleShare = async () => {
     try {
       const hoursText = user.totalListeningTime === 1 ? 'hour' : 'hours';
-      await Share.share({
-        message: `Check out my podcast listening stats! I've listened to ${user.totalListeningTime} ${hoursText} of amazing content and subscribed to ${user.subscriptions} podcasts.`,
-      });
+      const shareMessage = `Check out my podcast listening stats! I've listened to ${user.totalListeningTime} ${hoursText} of amazing content and subscribed to ${user.subscriptions} podcasts.`;
+      
+      // Try to get shareable image URL if available
+      const shareableImageUrl = await getShareableImageUrl();
+      
+      const shareOptions = {
+        message: shareMessage,
+      };
+
+      // Add image URL if available (note: this may not work on all platforms)
+      if (shareableImageUrl) {
+        shareOptions.url = shareableImageUrl;
+      }
+
+      await Share.share(shareOptions);
     } catch (error) {
       console.error('Error sharing:', error);
+      Alert.alert('Share Error', 'Failed to share profile. Please try again.');
     }
   };
 
@@ -410,6 +449,9 @@ const ProfileScreen = ({ navigation }) => {
   // Get the display image using the context helper
   const displayImage = getProfileScreenImage();
 
+  // Show loading state if both user data and image context are still loading
+  const isInitialLoading = userLoading && !imageInitialized;
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -449,10 +491,17 @@ const ProfileScreen = ({ navigation }) => {
           style={styles.profileHeader}
         >
           <Animated.View style={[styles.profileImageContainer, { transform: [{ scale: profileImageScale }] }]}>
-            <TouchableOpacity onPress={handleImagePicker} disabled={loading}>
+            <TouchableOpacity 
+              onPress={handleImagePicker} 
+              disabled={imageLoading || isInitialLoading}
+              style={[
+                styles.profileImageTouchable,
+                (imageLoading || isInitialLoading) && styles.profileImageDisabled
+              ]}
+            >
               <Image source={displayImage} style={styles.profileImage} />
               <View style={styles.cameraButton}>
-                {loading ? (
+                {imageLoading ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Ionicons name="camera" size={16} color="#FFFFFF" />
@@ -461,8 +510,11 @@ const ProfileScreen = ({ navigation }) => {
             </TouchableOpacity>
           </Animated.View>
           
-          {userLoading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" style={{ marginBottom: 16 }} />
+          {isInitialLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={styles.loadingText}>Loading profile...</Text>
+            </View>
           ) : (
             <>
               <Text style={styles.userName}>{user.name}</Text>
@@ -471,7 +523,11 @@ const ProfileScreen = ({ navigation }) => {
             </>
           )}
           
-          <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+          <TouchableOpacity 
+            style={[styles.shareButton, isInitialLoading && styles.shareButtonDisabled]} 
+            onPress={handleShare}
+            disabled={isInitialLoading}
+          >
             <Ionicons name="share-outline" size={20} color="#FFFFFF" />
             <Text style={styles.shareButtonText}>Share Profile</Text>
           </TouchableOpacity>
@@ -498,7 +554,6 @@ const ProfileScreen = ({ navigation }) => {
             color="#45B7D1"
           />
         </View>
-
 
         {/* Account Settings */}
         <View style={styles.section}>
@@ -583,9 +638,9 @@ const ProfileScreen = ({ navigation }) => {
 
         {/* Sign Out Button */}
         <TouchableOpacity 
-          style={[styles.signOutButton, isSigningOut && styles.signOutButtonDisabled]} 
+          style={[styles.signOutButton, (isSigningOut || isInitialLoading) && styles.signOutButtonDisabled]} 
           onPress={handleSignOut}
-          disabled={isSigningOut}
+          disabled={isSigningOut || isInitialLoading}
         >
           {isSigningOut ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
@@ -655,6 +710,12 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginBottom: 16,
   },
+  profileImageTouchable: {
+    position: 'relative',
+  },
+  profileImageDisabled: {
+    opacity: 0.7,
+  },
   profileImage: {
     width: 120,
     height: 120,
@@ -674,6 +735,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 3,
     borderColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginTop: 8,
+    opacity: 0.9,
   },
   userName: {
     fontSize: 28,
@@ -703,6 +774,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  shareButtonDisabled: {
+    opacity: 0.5,
   },
   shareButtonText: {
     color: '#FFFFFF',
@@ -757,24 +831,6 @@ const styles = StyleSheet.create({
     color: '#000000',
     paddingHorizontal: 20,
     marginBottom: 12,
-  },
-  genresContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 20,
-  },
-  genreTag: {
-    backgroundColor: '#9C3141',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 12,
-    marginBottom: 8,
-  },
-  genreText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
   },
   menuContainer: {
     backgroundColor: '#FFFFFF',
