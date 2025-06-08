@@ -19,6 +19,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
 import { SCREEN_NAMES } from '../../navigation/types';
 import { useAuth } from '../../services/loginService';
 
@@ -36,6 +38,12 @@ const LoginScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   
+  // Biometric authentication state
+  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+  const [biometricType, setBiometricType] = useState(null);
+  const [isBiometricEnabled, setIsBiometricEnabled] = useState(false);
+  const [isBiometricLoading, setIsBiometricLoading] = useState(false);
+  
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -43,6 +51,167 @@ const LoginScreen = () => {
   
   // Input refs for focus handling
   const passwordInputRef = useRef(null);
+  
+  // Initialize biometric authentication
+  useEffect(() => {
+    checkBiometricSupport();
+    checkBiometricCredentials();
+  }, []);
+  
+  // Check if biometric authentication is supported
+  const checkBiometricSupport = async () => {
+    try {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      const supportedTypes = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      
+      setIsBiometricSupported(compatible && enrolled);
+      
+      if (supportedTypes.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+        setBiometricType('face');
+      } else if (supportedTypes.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+        setBiometricType('fingerprint');
+      } else if (supportedTypes.includes(LocalAuthentication.AuthenticationType.IRIS)) {
+        setBiometricType('iris');
+      }
+      
+      console.log('Biometric support:', { compatible, enrolled, supportedTypes });
+    } catch (error) {
+      console.error('Error checking biometric support:', error);
+      setIsBiometricSupported(false);
+    }
+  };
+  
+  // Check if user has saved biometric credentials
+  const checkBiometricCredentials = async () => {
+    try {
+      const savedCredentials = await SecureStore.getItemAsync('biometric_credentials');
+      setIsBiometricEnabled(!!savedCredentials);
+      
+      // If credentials exist and biometrics are supported, show prompt
+      if (savedCredentials && isBiometricSupported) {
+        // Optionally auto-prompt for biometric auth on app start
+        // handleBioAuth();
+      }
+    } catch (error) {
+      console.error('Error checking biometric credentials:', error);
+    }
+  };
+  
+  // Save credentials for biometric authentication
+  const saveBiometricCredentials = async (email, password) => {
+    try {
+      const credentials = JSON.stringify({ email, password });
+      await SecureStore.setItemAsync('biometric_credentials', credentials);
+      setIsBiometricEnabled(true);
+      
+      Alert.alert(
+        'Biometric Authentication Enabled',
+        'Your credentials have been saved securely. You can now use biometric authentication to log in.',
+        [{ text: 'OK', style: 'default' }]
+      );
+    } catch (error) {
+      console.error('Error saving biometric credentials:', error);
+      Alert.alert('Error', 'Failed to save credentials for biometric authentication.');
+    }
+  };
+  
+  // Remove saved biometric credentials
+  const removeBiometricCredentials = async () => {
+    try {
+      await SecureStore.deleteItemAsync('biometric_credentials');
+      setIsBiometricEnabled(false);
+      
+      Alert.alert(
+        'Biometric Authentication Disabled',
+        'Your saved credentials have been removed.',
+        [{ text: 'OK', style: 'default' }]
+      );
+    } catch (error) {
+      console.error('Error removing biometric credentials:', error);
+    }
+  };
+  
+  // Handle biometric authentication
+  const handleBioAuth = async () => {
+    if (!isBiometricSupported) {
+      Alert.alert(
+        'Biometric Authentication Unavailable',
+        'Biometric authentication is not supported or not set up on this device. Please ensure you have fingerprint or face recognition configured in your device settings.',
+        [{ text: 'OK', style: 'default' }]
+      );
+      return;
+    }
+    
+    if (!isBiometricEnabled) {
+      Alert.alert(
+        'Setup Biometric Authentication',
+        'To use biometric authentication, please log in with your email and password first, then enable biometric authentication in the prompt that follows.',
+        [{ text: 'OK', style: 'default' }]
+      );
+      return;
+    }
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsBiometricLoading(true);
+    
+    try {
+      const biometricAuth = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Authenticate to access your account',
+        cancelLabel: 'Cancel',
+        disableDeviceFallback: false,
+        requireConfirmation: false,
+      });
+      
+      if (biometricAuth.success) {
+        // Retrieve saved credentials
+        const savedCredentials = await SecureStore.getItemAsync('biometric_credentials');
+        
+        if (savedCredentials) {
+          const { email: savedEmail, password: savedPassword } = JSON.parse(savedCredentials);
+          
+          // Authenticate with saved credentials
+          const { data, error } = await signIn(savedEmail, savedPassword);
+          
+          if (error) {
+            Alert.alert(
+              'Authentication Failed',
+              'Your saved credentials appear to be invalid. Please log in manually and update your biometric authentication.',
+              [
+                {
+                  text: 'Remove Biometric Auth',
+                  style: 'destructive',
+                  onPress: removeBiometricCredentials
+                },
+                { text: 'Cancel', style: 'cancel' }
+              ]
+            );
+          } else if (data?.user) {
+            console.log('Biometric login successful:', data.user);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            // Navigation will be handled by the auth state listener
+          }
+        } else {
+          Alert.alert('Error', 'No saved credentials found. Please log in manually first.');
+          setIsBiometricEnabled(false);
+        }
+      } else if (biometricAuth.error === 'user_cancel') {
+        console.log('Biometric authentication cancelled by user');
+      } else {
+        console.log('Biometric authentication failed:', biometricAuth.error);
+        Alert.alert(
+          'Authentication Failed',
+          'Biometric authentication failed. Please try again or use your email and password.',
+          [{ text: 'OK', style: 'default' }]
+        );
+      }
+    } catch (error) {
+      console.error('Biometric authentication error:', error);
+      Alert.alert('Error', 'An error occurred during biometric authentication.');
+    } finally {
+      setIsBiometricLoading(false);
+    }
+  };
   
   // Validate email format
   const validateEmail = (text) => {
@@ -105,10 +274,30 @@ const LoginScreen = () => {
         } else if (data?.user) {
           // Successful login - LoginService has already recorded the activity
           console.log('Login successful:', data.user);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           
           // Get current session to verify it's active
           const sessionId = await loginService.getCurrentSessionId();
           console.log('Current session ID:', sessionId);
+          
+          // Offer to enable biometric authentication if supported and not already enabled
+          if (isBiometricSupported && !isBiometricEnabled) {
+            Alert.alert(
+              'Enable Biometric Authentication?',
+              `Would you like to enable ${biometricType === 'face' ? 'Face ID' : 'fingerprint'} authentication for faster login?`,
+              [
+                {
+                  text: 'Not Now',
+                  style: 'cancel'
+                },
+                {
+                  text: 'Enable',
+                  style: 'default',
+                  onPress: () => saveBiometricCredentials(email.trim(), password)
+                }
+              ]
+            );
+          }
           
           // Navigation will be handled by the auth state listener in useAuth
         }
@@ -220,21 +409,6 @@ const LoginScreen = () => {
       checkProfileAndNavigate();
     }
   }, [user, authLoading, navigation]);
-  
-  // Bio authentication handler
-  const handleBioAuth = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      "Bio-Authentication",
-      "Biometric authentication will be available in a future update.",
-      [
-        {
-          text: "OK",
-          style: "default"
-        }
-      ]
-    );
-  };
 
   // Show terms and conditions
   const showTermsAndConditions = () => {
@@ -249,6 +423,27 @@ const LoginScreen = () => {
     navigation.navigate(SCREEN_NAMES.TERMS, { 
       showPrivacyPolicy: true 
     });
+  };
+
+  // Get biometric icon based on type
+  const getBiometricIcon = () => {
+    if (biometricType === 'face') {
+      return require("../../assets/Auth/face-id.png");
+    }
+    return require("../../assets/Auth/fingerprint.png");
+  };
+
+  // Get biometric text based on type and status
+  const getBiometricText = () => {
+    if (!isBiometricSupported) {
+      return 'Biometric authentication not available';
+    }
+    
+    if (isBiometricEnabled) {
+      return `Use ${biometricType === 'face' ? 'Face ID' : 'Fingerprint'}`;
+    }
+    
+    return `Enable ${biometricType === 'face' ? 'Face ID' : 'Fingerprint'}`;
   };
 
   return (
@@ -461,24 +656,52 @@ const LoginScreen = () => {
                   </TouchableOpacity>
                 </View>
                 
-                <TouchableOpacity 
-                  style={styles.bioAuthContainer}
-                  onPress={handleBioAuth}
-                  accessibilityLabel="Use Bio-Authentication"
-                  accessibilityRole="button"
-                >
-                  <Image 
-                    source={require("../../assets/Auth/fingerprint.png")} 
-                    style={styles.bioAuthIcon}
-                    resizeMode="contain"
-                  />
-                  <Image 
-                    source={require("../../assets/Auth/face-id.png")} 
-                    style={styles.bioAuthIcon}
-                    resizeMode="contain"
-                  />
-                  <Text style={styles.bioAuthText}>Use Bio-Authentication?</Text>
-                </TouchableOpacity>
+                {/* Enhanced Biometric Authentication Section */}
+                {isBiometricSupported && (
+                  <TouchableOpacity 
+                    style={[
+                      styles.bioAuthContainer,
+                      isBiometricEnabled && styles.bioAuthContainerEnabled,
+                      !isBiometricSupported && styles.bioAuthContainerDisabled
+                    ]}
+                    onPress={handleBioAuth}
+                    disabled={isBiometricLoading || !isBiometricSupported}
+                    accessibilityLabel={`Use biometric authentication: ${getBiometricText()}`}
+                    accessibilityRole="button"
+                  >
+                    {isBiometricLoading ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" style={styles.bioAuthLoader} />
+                    ) : (
+                      <>
+                        <Image 
+                          source={getBiometricIcon()} 
+                          style={[
+                            styles.bioAuthIcon,
+                            isBiometricEnabled && styles.bioAuthIconEnabled
+                          ]}
+                          resizeMode="contain"
+                        />
+                        {biometricType === 'face' && (
+                          <Image 
+                            source={require("../../assets/Auth/fingerprint.png")} 
+                            style={[
+                              styles.bioAuthIcon,
+                              { opacity: 0.3 }
+                            ]}
+                            resizeMode="contain"
+                          />
+                        )}
+                      </>
+                    )}
+                    <Text style={[
+                      styles.bioAuthText,
+                      isBiometricEnabled && styles.bioAuthTextEnabled,
+                      !isBiometricSupported && styles.bioAuthTextDisabled
+                    ]}>
+                      {getBiometricText()}
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 
                 <View style={styles.termsContainer}>
                   <Text style={styles.termsText}>
