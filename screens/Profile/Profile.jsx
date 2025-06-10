@@ -262,29 +262,25 @@ const ProfileScreen = ({ navigation }) => {
     const updateGradientColors = async () => {
       try {
         const displayImage = getProfileScreenImage();
-        // Only extract colors if it's a custom image (has uri property)
         if (displayImage.uri && hasCustomProfileImage()) {
           const colors = await getAdaptiveGradientColors(displayImage.uri);
           setGradientColors(colors);
         } else {
-          // Use default gradient for default images
           setGradientColors(['#9C3141', '#262726']);
         }
       } catch (error) {
         console.log('Failed to update gradient colors:', error);
-        setGradientColors(['#9C3141', '#262726']); // Fallback
+        setGradientColors(['#9C3141', '#262726']); 
       }
     };
-
-    // Only update colors if image context is initialized
     if (imageInitialized) {
       updateGradientColors();
     }
   }, [profileImage, imageInitialized, getProfileScreenImage, hasCustomProfileImage]);
 
-  // Enhanced image picker with loading states
+  
   const handleImagePicker = () => {
-    if (imageLoading) return; // Prevent multiple simultaneous operations
+    if (imageLoading) return; 
 
     Alert.alert(
       'Change Profile Photo',
@@ -342,20 +338,14 @@ const ProfileScreen = ({ navigation }) => {
     );
   };
 
-  // Enhanced share function with profile image
   const handleShare = async () => {
     try {
       const hoursText = user.totalListeningTime === 1 ? 'hour' : 'hours';
       const shareMessage = `Check out my podcast listening stats! I've listened to ${user.totalListeningTime} ${hoursText} of amazing content and subscribed to ${user.subscriptions} podcasts.`;
-      
-      // Try to get shareable image URL if available
       const shareableImageUrl = await getShareableImageUrl();
-      
       const shareOptions = {
         message: shareMessage,
       };
-
-      // Add image URL if available (note: this may not work on all platforms)
       if (shareableImageUrl) {
         shareOptions.url = shareableImageUrl;
       }
@@ -446,22 +436,15 @@ const ProfileScreen = ({ navigation }) => {
     />
   );
 
-  // Get the display image using the context helper
   const displayImage = getProfileScreenImage();
-
-  // Show loading state if both user data and image context are still loading
   const isInitialLoading = userLoading && !imageInitialized;
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
-      {/* Back Button - Always visible */}
       <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
         <Ionicons name="chevron-back" size={24} color="#000000" />
       </TouchableOpacity>
-      
-      {/* Animated Header */}
       <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
         <BlurView intensity={100} style={styles.headerBlur}>
           <Text style={styles.headerTitle}>Profile</Text>
@@ -588,13 +571,7 @@ const ProfileScreen = ({ navigation }) => {
               icon="notifications-outline"
               title="Notifications"
               subtitle="Push notifications and alerts"
-              rightElement={
-                <SettingsToggle
-                  value={settings.notifications}
-                  onValueChange={(value) => setSettings(prev => ({ ...prev, notifications: value }))}
-                />
-              }
-              showArrow={false}
+              onPress={() => navigation.navigate('NotificationsScreen')}
             />
             <MenuItem
               icon="download-outline"
