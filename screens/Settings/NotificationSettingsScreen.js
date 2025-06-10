@@ -267,8 +267,6 @@ const NotificationSettingsScreen = ({ navigation }) => {
           )}
         </View>
 
-  
-
         <View style={{ height: 50 }} />
       </ScrollView>
     </SafeAreaView>
