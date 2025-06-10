@@ -9,8 +9,11 @@ import {
   StatusBar,
   Switch,
   Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../lib/supabase'; 
+import { useDataExport } from '../../utils/useDataExport';
 
 const PrivacyScreen = ({ navigation }) => {
   const [settings, setSettings] = useState({
@@ -23,6 +26,14 @@ const PrivacyScreen = ({ navigation }) => {
     marketingEmails: true,
     twoFactorAuth: false,
   });
+
+  const {
+    exportRequests,
+    loading: exportLoading,
+    requestDataExport,
+    canRequestExport,
+    latestCompletedExport,
+  } = useDataExport();
 
   const handleToggle = (key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -47,11 +58,86 @@ const PrivacyScreen = ({ navigation }) => {
     );
   };
 
-  const MenuItem = ({ title, subtitle, value, onValueChange, showToggle = true, onPress, dangerous = false }) => (
+  const handleDownloadData = async () => {
+    if (!canRequestExport) {
+      Alert.alert(
+        'Request Pending',
+        'You already have a pending data export request. Please wait for it to complete before requesting another one.'
+      );
+      return;
+    }
+
+    try {
+      await requestDataExport();
+      Alert.alert(
+        'Data Export Initiated',
+        'We\'re preparing your data export. You\'ll receive an email with a download link within 24 hours. The link will be valid for 7 days.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert('Export Failed', error.message);
+    }
+  };
+
+  const openDownloadUrl = async (url) => {
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Error', 'Unable to open download link');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to open download link');
+    }
+  };
+
+  const renderExportStatus = () => {
+    if (exportRequests.length === 0) return null;
+
+    const latestRequest = exportRequests[0];
+    
+    return (
+      <View style={styles.exportStatusContainer}>
+        <Text style={styles.exportStatusTitle}>Recent Data Export</Text>
+        <View style={styles.exportStatusItem}>
+          <View style={styles.exportStatusLeft}>
+            <Text style={styles.exportStatusDate}>
+              {new Date(latestRequest.created_at).toLocaleDateString()}
+            </Text>
+            <Text style={styles.exportStatusText}>
+              Status: {latestRequest.status.charAt(0).toUpperCase() + latestRequest.status.slice(1)}
+            </Text>
+            {latestRequest.status === 'completed' && latestRequest.expires_at && (
+              <Text style={styles.exportStatusExpiry}>
+                Expires: {new Date(latestRequest.expires_at).toLocaleDateString()}
+              </Text>
+            )}
+          </View>
+          {latestRequest.status === 'completed' && latestRequest.download_url && (
+            <TouchableOpacity
+              style={styles.downloadButton}
+              onPress={() => openDownloadUrl(latestRequest.download_url)}
+            >
+              <Ionicons name="download-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.downloadButtonText}>Download</Text>
+            </TouchableOpacity>
+          )}
+          {latestRequest.status === 'processing' && (
+            <View style={styles.processingIndicator}>
+              <Text style={styles.processingText}>Processing...</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const MenuItem = ({ title, subtitle, value, onValueChange, showToggle = true, onPress, dangerous = false, loading = false }) => (
     <TouchableOpacity 
-      style={styles.menuItem} 
+      style={[styles.menuItem, loading && styles.menuItemDisabled]} 
       onPress={onPress}
-      disabled={showToggle}
+      disabled={showToggle || loading}
     >
       <View style={styles.menuLeft}>
         <Text style={[styles.menuTitle, dangerous && styles.dangerousText]}>{title}</Text>
@@ -66,8 +152,13 @@ const PrivacyScreen = ({ navigation }) => {
           ios_backgroundColor="#E5E5EA"
         />
       )}
-      {!showToggle && (
+      {!showToggle && !loading && (
         <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
+      )}
+      {loading && (
+        <View style={styles.loadingSpinner}>
+          <Text style={styles.loadingText}>Processing...</Text>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -166,16 +257,15 @@ const PrivacyScreen = ({ navigation }) => {
         <Section title="Data Management">
           <MenuItem
             title="Download My Data"
-            subtitle="Get a copy of your data"
+            subtitle={canRequestExport ? "Get a copy of your data in JSON format" : "Export request pending"}
             showToggle={false}
-            onPress={() => {
-              Alert.alert(
-                'Download Data',
-                'We\'ll prepare your data and send you a download link via email within 24 hours.',
-                [{ text: 'OK' }]
-              );
-            }}
+            loading={exportLoading}
+            onPress={handleDownloadData}
           />
+          
+          {/* Show export status if there are any requests */}
+          {renderExportStatus()}
+          
           <MenuItem
             title="Delete Account"
             subtitle="Permanently delete your account and all data"
@@ -195,14 +285,6 @@ const PrivacyScreen = ({ navigation }) => {
               </Text>
             </View>
           </View>
-          
-          <TouchableOpacity 
-            style={styles.linkButton}
-            onPress={() => navigation.navigate('Terms')}
-          >
-            <Text style={styles.linkText}>Read Privacy Policy</Text>
-            <Ionicons name="open-outline" size={16} color="#9C3141" />
-          </TouchableOpacity>
         </View>
 
         <View style={{ height: 50 }} />
@@ -267,6 +349,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#E5E5EA',
   },
+  menuItemDisabled: {
+    opacity: 0.6,
+  },
   menuLeft: {
     flex: 1,
     marginRight: 16,
@@ -284,6 +369,14 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     marginTop: 2,
     lineHeight: 18,
+  },
+  loadingSpinner: {
+    paddingHorizontal: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#9C3141',
+    fontWeight: '500',
   },
   infoContainer: {
     paddingHorizontal: 20,
@@ -313,17 +406,66 @@ const styles = StyleSheet.create({
     color: '#166534',
     lineHeight: 18,
   },
-  linkButton: {
+  exportStatusContainer: {
+    backgroundColor: '#F8F9FA',
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  exportStatusTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#495057',
+    marginBottom: 12,
+  },
+  exportStatusItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  exportStatusLeft: {
+    flex: 1,
+  },
+  exportStatusDate: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#212529',
+    marginBottom: 4,
+  },
+  exportStatusText: {
+    fontSize: 14,
+    color: '#6C757D',
+    marginBottom: 2,
+  },
+  exportStatusExpiry: {
+    fontSize: 12,
+    color: '#868E96',
+    fontStyle: 'italic',
+  },
+  downloadButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
+    backgroundColor: '#9C3141',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
-  linkText: {
-    fontSize: 16,
-    color: '#9C3141',
+  downloadButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '500',
-    marginRight: 6,
+    marginLeft: 6,
+  },
+  processingIndicator: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  processingText: {
+    fontSize: 14,
+    color: '#9C3141',
+    fontStyle: 'italic',
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,10 @@ import {
   Linking,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../lib/supabase';
 
 const SupportScreen = ({ navigation }) => {
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -22,6 +24,9 @@ const SupportScreen = ({ navigation }) => {
     message: '',
     email: 'alex.johnson@email.com',
   });
+  const [faqItems, setFaqItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const supportCategories = [
     {
@@ -56,48 +61,175 @@ const SupportScreen = ({ navigation }) => {
     },
   ];
 
-  const faqItems = [
-    {
-      question: 'How do I download episodes for offline listening?',
-      answer: 'Tap the download icon next to any episode. You can manage downloads in Settings > Downloads.',
-    },
-    {
-      question: 'Why are my downloads not working?',
-      answer: 'Check your internet connection and available storage space. You can also try restarting the app.',
-    },
-    {
-      question: 'How do I cancel my subscription?',
-      answer: 'Go to Profile > Subscription > Cancel Subscription. Your access will continue until the end of your billing period.',
-    },
-    {
-      question: 'Can I sync my data across devices?',
-      answer: 'Yes! Your listening history, subscriptions, and playlists sync automatically when you\'re signed in.',
-    },
-    {
-      question: 'How do I report inappropriate content?',
-      answer: 'Use the report button on any podcast or episode, or contact us directly through this support page.',
-    },
-  ];
+  // Fetch FAQ items from Supabase on component mount
+  useEffect(() => {
+    fetchFAQItems();
+    getCurrentUserEmail();
+  }, []);
+
+  const fetchFAQItems = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('faq_items')
+        .select('*')
+        .eq('is_active', true)
+        .order('order_index', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching FAQ items:', error);
+        // Fallback to default FAQ items
+        setDefaultFAQItems();
+      } else {
+        setFaqItems(data || []);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setDefaultFAQItems();
+    }
+  };
+
+  const setDefaultFAQItems = () => {
+    setFaqItems([
+      {
+        id: 1,
+        question: 'How do I download episodes for offline listening?',
+        answer: 'Tap the download icon next to any episode. You can manage downloads in Settings > Downloads.',
+      },
+      {
+        id: 2,
+        question: 'Why are my downloads not working?',
+        answer: 'Check your internet connection and available storage space. You can also try restarting the app.',
+      },
+      {
+        id: 3,
+        question: 'How do I cancel my subscription?',
+        answer: 'Go to Profile > Subscription > Cancel Subscription. Your access will continue until the end of your billing period.',
+      },
+      {
+        id: 4,
+        question: 'Can I sync my data across devices?',
+        answer: 'Yes! Your listening history, subscriptions, and playlists sync automatically when you\'re signed in.',
+      },
+      {
+        id: 5,
+        question: 'How do I report inappropriate content?',
+        answer: 'Use the report button on any podcast or episode, or contact us directly through this support page.',
+      },
+    ]);
+  };
+
+  const getCurrentUserEmail = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && user.email) {
+        setContactForm(prev => ({ ...prev, email: user.email }));
+      }
+    } catch (error) {
+      console.error('Error getting user email:', error);
+    }
+  };
 
   const handleCategorySelect = (category) => {
     setSelectedCategory(category);
     setContactForm(prev => ({ ...prev, subject: `${category.title}: ` }));
   };
 
-  const handleSubmitTicket = () => {
+  const handleSubmitTicket = async () => {
     if (!contactForm.subject.trim() || !contactForm.message.trim()) {
       Alert.alert('Error', 'Please fill in all required fields.');
       return;
     }
 
-    Alert.alert(
-      'Ticket Submitted',
-      'Thank you for contacting us! We\'ll respond to your inquiry within 24 hours.',
-      [{ text: 'OK', onPress: () => navigation.goBack() }]
-    );
+    setSubmitting(true);
+
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Insert support ticket into Supabase
+      const { data, error } = await supabase
+        .from('support_tickets')
+        .insert([
+          {
+            user_id: user?.id || null,
+            email: contactForm.email,
+            subject: contactForm.subject,
+            message: contactForm.message,
+            category: selectedCategory?.id || 'other',
+            status: 'open',
+            priority: 'medium',
+            created_at: new Date().toISOString(),
+          }
+        ])
+        .select();
+
+      if (error) {
+        throw error;
+      }
+
+      // Log the support request for analytics
+      await logSupportInteraction('ticket_submitted', {
+        category: selectedCategory?.id,
+        user_id: user?.id,
+        ticket_id: data[0]?.id
+      });
+
+      Alert.alert(
+        'Ticket Submitted',
+        `Thank you for contacting us! Your ticket ID is #${data[0]?.id}. We'll respond to your inquiry within 24 hours.`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+
+      // Reset form
+      setContactForm({
+        subject: '',
+        message: '',
+        email: contactForm.email,
+      });
+      setSelectedCategory(null);
+
+    } catch (error) {
+      console.error('Error submitting ticket:', error);
+      Alert.alert(
+        'Error',
+        'There was a problem submitting your ticket. Please try again or contact us directly.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleContactMethod = (method) => {
+  const logSupportInteraction = async (action, metadata = {}) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      await supabase
+        .from('support_analytics')
+        .insert([
+          {
+            user_id: user?.id || null,
+            action,
+            metadata,
+            created_at: new Date().toISOString(),
+          }
+        ]);
+    } catch (error) {
+      console.error('Error logging support interaction:', error);
+    }
+  };
+
+  const handleFAQClick = async (faqItem) => {
+    // Log FAQ interaction
+    await logSupportInteraction('faq_viewed', {
+      faq_id: faqItem.id,
+      question: faqItem.question
+    });
+  };
+
+  const handleContactMethod = async (method) => {
+    await logSupportInteraction('contact_method_used', { method });
+
     switch (method) {
       case 'email':
         Linking.openURL('mailto:support@podcastapp.com');
@@ -137,10 +269,17 @@ const SupportScreen = ({ navigation }) => {
   const FAQItem = ({ item, index }) => {
     const [expanded, setExpanded] = useState(false);
 
+    const toggleExpanded = () => {
+      setExpanded(!expanded);
+      if (!expanded) {
+        handleFAQClick(item);
+      }
+    };
+
     return (
       <TouchableOpacity
         style={styles.faqItem}
-        onPress={() => setExpanded(!expanded)}
+        onPress={toggleExpanded}
       >
         <View style={styles.faqHeader}>
           <Text style={styles.faqQuestion}>{item.question}</Text>
@@ -219,11 +358,17 @@ const SupportScreen = ({ navigation }) => {
           {/* FAQ Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
-            <View style={styles.faqContainer}>
-              {faqItems.map((item, index) => (
-                <FAQItem key={index} item={item} index={index} />
-              ))}
-            </View>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#9C3141" />
+              </View>
+            ) : (
+              <View style={styles.faqContainer}>
+                {faqItems.map((item, index) => (
+                  <FAQItem key={item.id || index} item={item} index={index} />
+                ))}
+              </View>
+            )}
           </View>
 
           {/* Support Categories */}
@@ -276,8 +421,16 @@ const SupportScreen = ({ navigation }) => {
                   />
                 </View>
 
-                <TouchableOpacity style={styles.submitButton} onPress={handleSubmitTicket}>
-                  <Text style={styles.submitButtonText}>Submit Ticket</Text>
+                <TouchableOpacity 
+                  style={[styles.submitButton, submitting && styles.submittingButton]} 
+                  onPress={handleSubmitTicket}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.submitButtonText}>Submit Ticket</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -289,7 +442,10 @@ const SupportScreen = ({ navigation }) => {
             <View style={styles.resourcesContainer}>
               <TouchableOpacity 
                 style={styles.resourceItem}
-                onPress={() => Linking.openURL('https://podcastapp.com/help')}
+                onPress={() => {
+                  logSupportInteraction('resource_accessed', { resource: 'user_guide' });
+                  Linking.openURL('https://podcastapp.com/help');
+                }}
               >
                 <Ionicons name="book-outline" size={20} color="#9C3141" />
                 <Text style={styles.resourceText}>User Guide</Text>
@@ -298,7 +454,10 @@ const SupportScreen = ({ navigation }) => {
 
               <TouchableOpacity 
                 style={styles.resourceItem}
-                onPress={() => Linking.openURL('https://status.podcastapp.com')}
+                onPress={() => {
+                  logSupportInteraction('resource_accessed', { resource: 'service_status' });
+                  Linking.openURL('https://status.podcastapp.com');
+                }}
               >
                 <Ionicons name="pulse-outline" size={20} color="#9C3141" />
                 <Text style={styles.resourceText}>Service Status</Text>
@@ -307,7 +466,10 @@ const SupportScreen = ({ navigation }) => {
 
               <TouchableOpacity 
                 style={styles.resourceItem}
-                onPress={() => Linking.openURL('https://community.podcastapp.com')}
+                onPress={() => {
+                  logSupportInteraction('resource_accessed', { resource: 'community_forum' });
+                  Linking.openURL('https://community.podcastapp.com');
+                }}
               >
                 <Ionicons name="people-outline" size={20} color="#9C3141" />
                 <Text style={styles.resourceText}>Community Forum</Text>
@@ -362,6 +524,10 @@ const styles = StyleSheet.create({
     color: '#000000',
     paddingHorizontal: 20,
     marginBottom: 12,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
   },
   contactRow: {
     flexDirection: 'row',
@@ -501,6 +667,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 8,
+  },
+  submittingButton: {
+    backgroundColor: '#C7C7CC',
   },
   submitButtonText: {
     color: '#FFFFFF',

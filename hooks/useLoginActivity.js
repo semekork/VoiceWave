@@ -1,6 +1,7 @@
-// hooks/useLoginActivity.js
+// hooks/useLoginActivity.js - Enhanced version
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { getDeviceInfo, getClientIP, getLocationFromIP, formatTimeAgo, isValidIP } from '../utils/deviceUtils';
 
 export const useLoginActivity = () => {
   const [loginActivities, setLoginActivities] = useState([]);
@@ -13,7 +14,7 @@ export const useLoginActivity = () => {
       setError(null);
       
       const { data, error } = await supabase.rpc('get_user_login_activities', {
-        limit_count: 20
+        limit_count: 50
       });
 
       if (error) throw error;
@@ -21,18 +22,16 @@ export const useLoginActivity = () => {
       // Transform the data to match your component's expected format
       const transformedData = data.map(activity => ({
         id: activity.id,
-        device: activity.device_info?.device_type || 'Unknown Device',
-        location: activity.location?.city && activity.location?.country 
-          ? `${activity.location.city}, ${activity.location.country}`
-          : activity.location?.country || 'Unknown Location',
-        time: activity.time_ago,
-        current: activity.is_current,
-        ip: activity.ip_address || 'Unknown',
-        browser: activity.device_info?.browser || 'Unknown',
-        sessionId: activity.session_id,
-        loginTime: activity.login_time,
+        device_info: activity.device_info,
+        location: activity.location,
+        time_ago: activity.time_ago || formatTimeAgo(activity.login_time),
+        is_current: activity.is_current,
+        ip_address: activity.ip_address || 'Unknown',
+        session_id: activity.session_id,
+        login_time: activity.login_time,
+        user_agent: activity.user_agent,
         suspicious: checkSuspiciousActivity(activity),
-        rawData: activity
+        raw_data: activity
       }));
 
       setLoginActivities(transformedData);
@@ -46,25 +45,45 @@ export const useLoginActivity = () => {
 
   const recordLoginActivity = async (sessionId = null) => {
     try {
-      // Get user's IP and location (you might want to use a service like ipapi.co)
-      const ipResponse = await fetch('https://api.ipify.org?format=json');
-      const ipData = await ipResponse.json();
+      // Get comprehensive device information
+      const deviceInfo = await getDeviceInfo();
       
-      const locationResponse = await fetch(`https://ipapi.co/${ipData.ip}/json/`);
-      const locationData = await locationResponse.json();
-
+      // Get IP address from multiple sources
+      let ipAddress = await getClientIP();
+      
+      // Fallback to detecting IP from request headers if available
+      if (!ipAddress || !isValidIP(ipAddress)) {
+        try {
+          // This would typically be handled by your backend
+          const response = await fetch('/api/get-client-ip');
+          const data = await response.json();
+          ipAddress = data.ip;
+        } catch (e) {
+          console.warn('Could not get IP from backend:', e);
+        }
+      }
+      
+      // Get location information
+      let locationData = null;
+      if (ipAddress) {
+        locationData = await getLocationFromIP(ipAddress);
+      }
+      
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      
+      // Generate session ID if not provided
+      const finalSessionId = sessionId || generateSessionId();
+      
+      // Record the login activity
       const { data, error } = await supabase.rpc('record_login_activity', {
-        p_user_id: (await supabase.auth.getUser()).data.user?.id,
-        p_ip_address: ipData.ip,
+        p_user_id: user.id,
+        p_ip_address: ipAddress || 'Unknown',
         p_user_agent: navigator.userAgent,
-        p_location: {
-          city: locationData.city,
-          region: locationData.region,
-          country: locationData.country_name,
-          latitude: locationData.latitude,
-          longitude: locationData.longitude
-        },
-        p_session_id: sessionId || generateSessionId()
+        p_location: locationData,
+        p_device_info: deviceInfo,
+        p_session_id: finalSessionId
       });
 
       if (error) throw error;
@@ -72,7 +91,14 @@ export const useLoginActivity = () => {
       // Refresh the activities list
       await fetchLoginActivities();
       
-      return data;
+      return {
+        success: true,
+        sessionId: finalSessionId,
+        ipAddress,
+        deviceInfo,
+        locationData,
+        data
+      };
     } catch (err) {
       console.error('Error recording login activity:', err);
       throw err;
@@ -99,27 +125,124 @@ export const useLoginActivity = () => {
 
   const endAllOtherSessions = async () => {
     try {
-      const currentSession = loginActivities.find(activity => activity.current);
-      const otherSessions = loginActivities.filter(activity => !activity.current && activity.sessionId);
+      // Get current session
+      const { data: { session } } = await supabase.auth.getSession();
+      const currentSessionId = session?.access_token;
       
-      const promises = otherSessions.map(session => 
-        supabase.rpc('end_login_session', { p_session_id: session.sessionId })
-      );
+      if (!currentSessionId) {
+        throw new Error('No current session found');
+      }
       
-      await Promise.all(promises);
+      // End all other sessions
+      const { data, error } = await supabase.rpc('end_all_other_sessions', {
+        p_current_session_id: currentSessionId
+      });
+      
+      if (error) throw error;
       
       // Refresh the activities list
       await fetchLoginActivities();
       
-      return true;
+      return data;
     } catch (err) {
-      console.error('Error ending all sessions:', err);
+      console.error('Error ending all other sessions:', err);
       throw err;
     }
   };
 
+  const reportSuspiciousActivity = async (activityId, reason = 'User reported') => {
+    try {
+      const { error } = await supabase
+        .from('login_activities')
+        .update({ 
+          device_info: supabase.raw(`
+            COALESCE(device_info, '{}'::jsonb) || jsonb_build_object(
+              'suspicious', true,
+              'reported_at', '${new Date().toISOString()}',
+              'report_reason', '${reason}'
+            )
+          `)
+        })
+        .eq('id', activityId);
+
+      if (error) throw error;
+      
+      // Refresh the activities
+      await fetchLoginActivities();
+      
+      return true;
+    } catch (err) {
+      console.error('Error reporting suspicious activity:', err);
+      throw err;
+    }
+  };
+
+  const getSessionInfo = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const deviceInfo = await getDeviceInfo();
+      const ipAddress = await getClientIP();
+      
+      return {
+        sessionId: session?.access_token,
+        deviceInfo,
+        ipAddress,
+        userAgent: navigator.userAgent
+      };
+    } catch (err) {
+      console.error('Error getting session info:', err);
+      return null;
+    }
+  };
+
+  // Auto-record login activity when hook is first used
   useEffect(() => {
-    fetchLoginActivities();
+    const initializeLoginTracking = async () => {
+      try {
+        // Check if we have a valid session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // Check if this session is already recorded
+          const { data: existingActivity } = await supabase
+            .from('login_activities')
+            .select('id')
+            .eq('session_id', session.access_token)
+            .eq('is_current', true)
+            .single();
+          
+          if (!existingActivity) {
+            // Record this login activity
+            await recordLoginActivity(session.access_token);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not initialize login tracking:', err);
+      }
+      
+      // Fetch existing activities regardless
+      await fetchLoginActivities();
+    };
+    
+    initializeLoginTracking();
+  }, []);
+
+  // Listen for auth state changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          try {
+            await recordLoginActivity(session.access_token);
+          } catch (err) {
+            console.warn('Could not record login activity:', err);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setLoginActivities([]);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
   return {
@@ -130,6 +253,8 @@ export const useLoginActivity = () => {
     recordLoginActivity,
     endSession,
     endAllOtherSessions,
+    reportSuspiciousActivity,
+    getSessionInfo,
     refresh: fetchLoginActivities
   };
 };
@@ -140,26 +265,53 @@ const generateSessionId = () => {
 };
 
 const checkSuspiciousActivity = (activity) => {
-  if (!activity.location || !activity.device_info) return false;
+  if (!activity) return false;
   
-  // Simple suspicious activity detection
-  // You can enhance this with more sophisticated logic
-  const now = new Date();
-  const loginTime = new Date(activity.login_time);
-  const timeDiff = now - loginTime;
-  
-  // Flag as suspicious if:
-  // 1. Login from a country that's very different from usual
-  // 2. Multiple logins from different locations within a short time
-  // 3. Unusual user agent patterns
-  
-  // For now, we'll use a simple heuristic
-  const unusualLocations = ['Unknown Location'];
-  const isUnusualLocation = unusualLocations.includes(
-    activity.location?.city && activity.location?.country 
-      ? `${activity.location.city}, ${activity.location.country}`
-      : activity.location?.country || 'Unknown Location'
-  );
-  
-  return isUnusualLocation;
+  try {
+    // Check if already marked as suspicious
+    if (activity.device_info?.suspicious) return true;
+    
+    let suspiciousScore = 0;
+    
+    // Check for unknown device info
+    if (!activity.device_info || activity.device_info.device_type === 'Unknown Device') {
+      suspiciousScore += 1;
+    }
+    
+    // Check for unknown location
+    if (!activity.location || activity.location === 'Unknown Location') {
+      suspiciousScore += 1;
+    }
+    
+    // Check for unusual login times (2-5 AM)
+    const loginTime = new Date(activity.login_time);
+    const hour = loginTime.getHours();
+    if (hour >= 2 && hour <= 5) {
+      suspiciousScore += 1;
+    }
+    
+    // Check for private IP addresses that might indicate VPN/proxy
+    if (activity.ip_address) {
+      const ip = activity.ip_address;
+      // This is a simple check - you might want more sophisticated detection
+      if (ip.startsWith('10.') || ip.startsWith('192.168.') || ip.startsWith('172.')) {
+        // Private IPs might be normal for corporate networks
+        suspiciousScore += 0.5;
+      }
+    }
+    
+    return suspiciousScore >= 2;
+  } catch (e) {
+    console.warn('Error checking suspicious activity:', e);
+    return false;
+  }
+};
+
+// Export additional utility functions
+export const deviceUtils = {
+  generateSessionId,
+  checkSuspiciousActivity,
+  getDeviceInfo,
+  getClientIP,
+  getLocationFromIP
 };

@@ -39,20 +39,17 @@ const LoginActivityScreen = ({ navigation }) => {
 
   const handleEndSession = async (sessionId) => {
     try {
-      // Use your existing end_login_session function
+      // Delete the session from login_activities table
       const { data, error } = await supabase
-        .rpc('end_login_session', { p_session_id: sessionId });
+        .from('login_activities')
+        .delete()
+        .eq('session_id', sessionId);
 
       if (error) {
         throw error;
       }
 
-      // Check if the session was found and ended
-      if (!data) {
-        throw new Error('Session not found or already ended');
-      }
-
-      // Refresh the login activities list after ending session
+      // Refresh the login activities list after deleting session
       await refresh();
 
       return true;

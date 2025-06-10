@@ -16,6 +16,9 @@ import { useAppState } from '../hooks/useAppState';
 // Components
 import LoadingScreen from './LoadingScreen';
 
+//Services
+import NotificationService from '../services/NotificationService';
+
 const RootStack = createNativeStackNavigator();
 
 // Main App Component with Enhanced State Management
@@ -27,6 +30,11 @@ function AppContent() {
   useEffect(() => {
     if (navigationRef.current) {
       NavigationService.setTopLevelNavigator(navigationRef.current);
+    };
+
+    NotificationService.initialize();
+    return () => {
+      NotificationService.cleanup();
     }
   }, []);
 

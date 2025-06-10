@@ -252,7 +252,7 @@ const LiveChatScreen = ({ navigation }) => {
             </TouchableOpacity>
             
             <View style={styles.headerInfo}>
-              <Text style={styles.headerTitle}>AI Assistant</Text>
+              <Text style={styles.headerTitle}>Dameah</Text>
               <View style={styles.statusContainer}>
                 <View style={[styles.statusDot, { backgroundColor: isAgentOnline ? '#34C759' : '#FF6B6B' }]} />
                 <Text style={styles.statusText}>
