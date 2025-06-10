@@ -1,20 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
-  TouchableOpacity, 
-  StatusBar, 
-  Image,
-  TextInput,
-  Animated,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator
-} from 'react-native';
+import { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, StatusBar, Image,TextInput,Animated,Keyboard,KeyboardAvoidingView,Platform,Alert,ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
