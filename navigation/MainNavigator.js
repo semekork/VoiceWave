@@ -9,18 +9,19 @@ import PlayerScreen from "../screens/Home/PlayerScreen";
 import QueueScreen from "../screens/Home/QueueScreen";
 import Profile from "../screens/Profile/Profile";
 import EditProfileScreen from "../screens/Profile/EditProfileScreen";
-import PrivacyScreen from "../screens/Profile/PrivacyScreen";
-import SubscriptionScreen from "../screens/Profile/SubScriptionScreen";
-import SupportScreen from "../screens/Profile/SupportScreen";
-import TermsScreen from "../screens/Profile/TermsScreen";
-import AboutScreen from "../screens/Profile/AboutScreen";
-import ReleaseNotes from "../screens/Profile/ReleaseNotes";
+import PrivacyScreen from "../screens/Settings/PrivacyScreen";
+import SubscriptionScreen from "../screens/Settings/SubScriptionScreen";
+import SupportScreen from "../screens/Settings/SupportScreen";
+import TermsScreen from "../screens/Settings/TermsScreen";
+import AboutScreen from "../screens/Settings/AboutScreen";
+import ReleaseNotes from "../screens/Settings/ReleaseNotes";
 import PodcastDetailScreen from "../screens/Details/PodcastDetailsScreen";
 import EqualizerScreen from "../components/Equalizer";
 import DeleteAccountScreen from "../screens/Auth/DeleteAccount";
 import GoodbyeScreen from "../screens/Profile/GoodbyeScreen";
 import LoginActivity from "../screens/Auth/LoginActivity";
 import liveChat from "../screens/Chat/liveChat";
+import NotificationSettingsScreen from "../screens/Settings/NotificationSettingsScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -182,6 +183,14 @@ const MainNavigator = () => {
           component={liveChat}
           options={{
             animation: 'slide_from_bottom',
+            gestureDirection: 'vertical',
+          }}
+        />
+        <Stack.Screen 
+          name={SCREEN_NAMES.NOTIFICATIONS} 
+          component={NotificationSettingsScreen}
+          options={{
+            animation: 'slide_from_right',
             gestureDirection: 'vertical',
           }}
         />
