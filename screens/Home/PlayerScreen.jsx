@@ -12,7 +12,7 @@ import {
   Animated
 } from 'react-native';
 import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
-import * as Sharing from 'expo-sharing';
+
 
 import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext';
 import AudioPlayerMenu from '../../components/AudioPlayerOptions';
@@ -25,12 +25,6 @@ import { MenuButtonContainer } from '../../components/PlayerMenuButton';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function PlayerScreen({ navigation, route }) {
-  const {
-    podcastTitle,
-    podcastSubtitle,
-    podcastImage,
-  } = route.params || currentPodcast || {};
-
   const {
     isPlaying,
     position,
@@ -54,10 +48,29 @@ export default function PlayerScreen({ navigation, route }) {
     addToQueue
   } = useGlobalAudioPlayer();
 
+  const routeParams = route?.params || {};
+  const podcastInfo = currentPodcast || {};
+  
+  const podcastTitle = routeParams.podcastTitle || 
+                      podcastInfo.title || 
+                      podcastInfo.podcastTitle || 
+                      'Unknown Title';
+                      
+  const podcastSubtitle = routeParams.podcastSubtitle || 
+                         podcastInfo.subtitle || 
+                         podcastInfo.podcastSubtitle || 
+                         podcastInfo.author || 
+                         'Unknown Artist';
+                         
+  const podcastImage = routeParams.podcastImage || 
+                      podcastInfo.image || 
+                      podcastInfo.podcastImage || 
+                      podcastInfo.artwork || 
+                      require('../../assets/gratitude.jpeg'); 
+
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const menuAnimation = useRef(new Animated.Value(0)).current;
   
-  // Animation values for podcast cover
   const pulseAnimation = useRef(new Animated.Value(1)).current;
 
   const sleepTimer = SleepTimer({
@@ -91,7 +104,6 @@ export default function PlayerScreen({ navigation, route }) {
     }
   }, [isPlaying]);
 
-
   // Menu toggle handler
   const handleMenuToggle = () => {
     setIsMenuVisible(!isMenuVisible);
@@ -104,6 +116,20 @@ export default function PlayerScreen({ navigation, route }) {
 
   const handleGoBack = () => {
     navigation.goBack();
+  };
+
+  // Handle image source properly
+  const getImageSource = () => {
+    if (typeof podcastImage === 'string') {
+      return { uri: podcastImage };
+    } else if (typeof podcastImage === 'number') {
+      return podcastImage; 
+    } else if (podcastImage && podcastImage.uri) {
+      return podcastImage;
+    } else {
+      // Fallback to default image
+      return require('../../assets/gratitude.jpeg');
+    }
   };
 
   return (
@@ -127,24 +153,35 @@ export default function PlayerScreen({ navigation, route }) {
 
       {/* Animated Podcast Cover */}
       <View style={styles.podcastCover}>
-          <Animated.View
-            style={[
-              styles.coverContainer,
-              {
-                transform: [
-                  { scale: pulseAnimation },
-                ],
-              },
-            ]}
-          >
-            <Image source={podcastImage} style={styles.podcast} />
-          </Animated.View>
+        <Animated.View
+          style={[
+            styles.coverContainer,
+            {
+              transform: [
+                { scale: pulseAnimation },
+              ],
+            },
+          ]}
+        >
+          <Image 
+            source={getImageSource()} 
+            style={styles.podcast}
+            defaultSource={require('../../assets/gratitude.jpeg')}
+            onError={(error) => {
+              console.log('Image load error:', error.nativeEvent.error);
+            }}
+          />
+        </Animated.View>
       </View>
 
       {/* Podcast Info */}
       <View style={styles.infoContainer}>
-        <Text style={styles.subTitle}>{podcastSubtitle}</Text>
-        <Text style={styles.title}>{podcastTitle}</Text>
+        <Text style={styles.subTitle} numberOfLines={2}>
+          {podcastSubtitle}
+        </Text>
+        <Text style={styles.title} numberOfLines={3}>
+          {podcastTitle}
+        </Text>
       </View>
 
       {/* Waveform */}
@@ -254,21 +291,25 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH * 0.8,
     height: SCREEN_WIDTH * 0.8,
     borderRadius: 20,
+    backgroundColor: '#E0E0E0', // Fallback background color
   },
   infoContainer: {
     alignItems: 'center',
     marginBottom: 30,
+    paddingHorizontal: 20,
   },
   subTitle: {
     fontSize: 16,
     color: '#666',
     marginBottom: 8,
+    textAlign: 'center',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 20,
+    color: '#000',
   },
   timeContainer: {
     flexDirection: 'row',
@@ -279,6 +320,7 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 14,
     color: '#666',
+    fontWeight: '500',
   },
   overlayBackground: {
     position: 'absolute',
