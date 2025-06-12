@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Asset } from 'expo-asset';
 
 const useAudioPlayer = ({
   autoPlay = false,
   defaultVolume = 1.0,
   persistPosition = true,
-  
 } = {}) => {
   const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -42,9 +42,51 @@ const useAudioPlayer = ({
     console.log(`[AudioPlayer Debug] ${message}`, ...args);
   };
 
+  // Helper function to normalize audio source
+  const normalizeAudioSource = async (source) => {
+    if (!source) {
+      throw new Error('No audio source provided');
+    }
+
+    // If it's already a string URI, return as is
+    if (typeof source === 'string') {
+      return { uri: source };
+    }
+
+    // If it's an object with uri property, return as is
+    if (source && typeof source === 'object' && source.uri) {
+      return source;
+    }
+
+    // If it's a require() result (number), convert to Asset
+    if (typeof source === 'number') {
+      try {
+        const asset = Asset.fromModule(source);
+        await asset.downloadAsync();
+        return { uri: asset.localUri || asset.uri };
+      } catch (err) {
+        debugLog('Error loading asset:', err);
+        throw new Error(`Failed to load audio asset: ${err.message}`);
+      }
+    }
+
+    // Try to extract URI from metadata or other nested structures
+    if (source && typeof source === 'object') {
+      if (source.audioSource) {
+        return normalizeAudioSource(source.audioSource);
+      }
+      if (source.metadata && source.metadata.audioSource) {
+        return normalizeAudioSource(source.metadata.audioSource);
+      }
+    }
+
+    throw new Error('Invalid audio source format');
+  };
+
   const getSourceKey = (src) => {
     if (typeof src === 'string') return src;
     if (src?.uri) return src.uri;
+    if (typeof src === 'number') return `asset_${src}`;
     return 'local';
   };
 
@@ -88,13 +130,6 @@ const useAudioPlayer = ({
     if (!soundObject || !settings.enabled) return;
 
     try {
-      // Note: Expo Audio doesn't have built-in equalizer support
-      // This is a placeholder for where you would integrate with a native audio processing library
-      // For actual implementation, you would need to use:
-      // 1. react-native-audio-toolkit with equalizer support
-      // 2. Custom native modules
-      // 3. Web Audio API (for web platforms)
-      
       debugLog('Applying equalizer settings:', settings);
       
       // Simulate equalizer application by adjusting volume based on preset
@@ -223,19 +258,27 @@ const useAudioPlayer = ({
   };
 
   const loadAudio = useCallback(async (newSource, podcastInfo = null) => {
-    if (!newSource) return;
+    if (!newSource) {
+      setError('No audio source provided');
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
     audioSourceRef.current = newSource;
 
     try {
+      // Unload existing sound
       if (soundRef.current) {
         await soundRef.current.unloadAsync();
         soundRef.current = null;
+        setSound(null);
       }
 
-      const sourceObject = typeof newSource === 'string' ? { uri: newSource } : newSource;
+      // Normalize the audio source
+      const sourceObject = await normalizeAudioSource(newSource);
+      debugLog('Loading audio from:', sourceObject);
+
       const { sound: newSound, status } = await Audio.Sound.createAsync(
         sourceObject,
         {
@@ -247,7 +290,9 @@ const useAudioPlayer = ({
         onPlaybackStatusUpdate
       );
 
-      if (!status.isLoaded) throw new Error(status.error);
+      if (!status.isLoaded) {
+        throw new Error(status.error || 'Failed to load audio');
+      }
 
       setSound(newSound);
       soundRef.current = newSound;
@@ -266,11 +311,13 @@ const useAudioPlayer = ({
         await applyEqualizerToSound(newSound, equalizerSettings);
       }
 
+      // Save state
       await AsyncStorage.setItem('@last_audio_source', JSON.stringify(newSource));
       if (podcastInfo) {
         await AsyncStorage.setItem('@last_podcast_info', JSON.stringify(podcastInfo));
       }
 
+      // Restore position if persistence is enabled
       if (persistPosition) {
         const key = `@position_${getSourceKey(newSource)}`;
         const saved = await AsyncStorage.getItem(key);
@@ -281,6 +328,9 @@ const useAudioPlayer = ({
           positionRef.current = millis;
         }
       }
+
+      debugLog('Audio loaded successfully');
+      
     } catch (err) {
       debugLog('Audio load error:', err);
       setError(`Load failed: ${err.message}`);
