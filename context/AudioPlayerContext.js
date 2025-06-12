@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from 'react';
-import useAudioPlayer from '../hooks/useAudioPlayer'; // Adjust path if needed
+import useAudioPlayer from '../hooks/useAudioPlayer';
 
 const AudioPlayerContext = createContext(null);
 
