@@ -12,15 +12,13 @@ const MiniPlayer = () => {
     audioSource,
     playPause,
     isPlaying,
-    setCurrentPodcast,
     skipForward,
     sound,
     isLoading,
     error,
-    currentPodcast, // This should contain the currently playing episode/podcast data
+    currentPodcast,
   } = useGlobalAudioPlayer();
 
-  // Only show MiniPlayer if there's a current podcast/episode loaded
   if (!currentPodcast) {
     return null;
   }
@@ -71,7 +69,7 @@ const MiniPlayer = () => {
       <View style={styles.rightSection}>
         <TouchableOpacity onPress={handlePlayPause} disabled={isLoading}>
           <Ionicons
-            name={isLoading ? "hourglass" : (isPlaying ? "pause" : "play")}
+            name={isPlaying ? "pause" : "play"}
             size={24}
             color="#000"
             style={{ marginRight: 16 }}
