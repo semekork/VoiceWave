@@ -322,7 +322,6 @@ const LoginScreen = () => {
 
           // Get current session to verify it's active
           const sessionId = await loginService.getCurrentSessionId();
-          console.log("Current session ID:", sessionId);
 
           // Offer to enable biometric authentication if supported and not already enabled
           if (isBiometricSupported && !isBiometricEnabled) {
