@@ -306,7 +306,7 @@ const RegisterScreen = ({ navigation }) => {
             [
               {
                 text: "OK",
-                onPress: () => navigation.navigate("LoginScreen"),
+                onPress: () => navigation.navigate("SuccessScreen"),
               },
             ]
           );
@@ -690,9 +690,6 @@ const RegisterScreen = ({ navigation }) => {
                         Haptics.selectionAsync();
                         navigation.navigate("LoginScreen");
                       }}
-                      accessibilityLabel="Sign in link"
-                      accessibilityHint="Go to sign in screen"
-                      accessibilityRole="link"
                     >
                       <Text style={styles.signInLinkText}>Sign In</Text>
                     </TouchableOpacity>
