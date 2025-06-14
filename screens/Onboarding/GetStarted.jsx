@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  Image, 
-  StyleSheet, 
-  SafeAreaView, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
   ImageBackground,
   Animated,
   Dimensions
@@ -13,10 +13,11 @@ import {
 import { Entypo } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '../../constants/appContants';
 
 const { width } = Dimensions.get('window');
 
-const GetStarted = ({ onGetStarted }) => {
+const GetStarted = ({ onGetStarted, onOnboardingComplete }) => {
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(50))[0];
   const pulseAnim = useState(new Animated.Value(1))[0];
@@ -190,23 +191,31 @@ const GetStarted = ({ onGetStarted }) => {
   const handleGetStarted = async () => {
     try {
       // Mark onboarding as complete
-      await AsyncStorage.setItem('onboarding_complete', 'true');
+      await AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING_COMPLETE || 'onboarding_complete', 'true');
       
       // Verify it was saved successfully
-      const saved = await AsyncStorage.getItem('onboarding_complete');
+      const saved = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE || 'onboarding_complete');
       console.log('Onboarding completion saved:', saved);
       
-      // Navigate to auth stack - this will trigger app state re-evaluation
-      // The root navigator will handle the transition properly
-      navigation.getParent()?.reset({
-        index: 0,
-        routes: [{ name: 'AuthStack' }], 
-      });
+      // Call the onboarding completion callback first
+      if (onOnboardingComplete) {
+        onOnboardingComplete();
+      }
+      
+      // Call the legacy onGetStarted prop if provided
+      if (onGetStarted) {
+        onGetStarted();
+      }
       
     } catch (error) {
       console.error('Error completing onboarding:', error);
-      // Still navigate even if storage fails
-      navigation.navigate('AuthStack');
+      // Even if storage fails, call the callbacks
+      if (onOnboardingComplete) {
+        onOnboardingComplete();
+      }
+      if (onGetStarted) {
+        onGetStarted();
+      }
     }
   };
 
