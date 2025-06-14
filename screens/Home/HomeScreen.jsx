@@ -18,7 +18,7 @@ import {
   setCurrentlyPlaying,
   formatDuration,
   formatPublishedDate
-} from '../../constants/podcastData'; // Updated to match your data file
+} from '../../constants/podcastData'; 
 
 export default function HomeScreen() {
   const { greeting } = useGreeting('');
