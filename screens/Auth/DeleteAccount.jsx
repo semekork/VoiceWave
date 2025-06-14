@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import DeleteAccountService from '../../services/DeleteAccountService';
 
 const DeleteAccountScreen = ({ navigation }) => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -21,6 +22,7 @@ const DeleteAccountScreen = ({ navigation }) => {
   const [customReason, setCustomReason] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   const deletionReasons = [
     'I found a better alternative',
@@ -32,6 +34,27 @@ const DeleteAccountScreen = ({ navigation }) => {
     'Other'
   ];
 
+  // Get current user on component mount
+  useEffect(() => {
+    loadCurrentUser();
+  }, []);
+
+  const loadCurrentUser = async () => {
+    try {
+      const { user, error } = await DeleteAccountService.getCurrentUser();
+      if (error) {
+        Alert.alert('Error', 'Unable to load user information. Please try again.');
+        navigation.goBack();
+        return;
+      }
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Error loading user:', error);
+      Alert.alert('Error', 'Unable to load user information. Please try again.');
+      navigation.goBack();
+    }
+  };
+
   const handleReasonToggle = (reason) => {
     setSelectedReasons(prev => 
       prev.includes(reason) 
@@ -40,57 +63,134 @@ const DeleteAccountScreen = ({ navigation }) => {
     );
   };
 
-  const handlePasswordVerification = () => {
+  const handlePasswordVerification = async () => {
     if (!password.trim()) {
       Alert.alert('Error', 'Please enter your password to continue.');
       return;
     }
+
+    if (!currentUser?.email) {
+      Alert.alert('Error', 'Unable to verify user email. Please try again.');
+      return;
+    }
     
-    // Simulate password verification
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      // In a real app, you'd verify the password here
-      if (password === 'wrongpassword') {
-        Alert.alert('Error', 'Incorrect password. Please try again.');
-      } else {
+    
+    try {
+      const result = await DeleteAccountService.verifyPassword(currentUser.email, password);
+      
+      if (result.success) {
         setCurrentStep(2);
+      } else {
+        Alert.alert('Error', result.error || 'Password verification failed.');
       }
-    }, 1500);
+    } catch (error) {
+      console.error('Password verification error:', error);
+      Alert.alert('Error', 'An error occurred during password verification.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleFinalDeletion = () => {
+  const handleAccountDeactivation = async () => {
+    if (!currentUser?.id) {
+      Alert.alert('Error', 'Unable to identify user. Please try again.');
+      return;
+    }
+
+    Alert.alert(
+      'Deactivate Account',
+      'Your account will be deactivated and you will be signed out. You can reactivate it by signing in again later.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Deactivate', 
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              const result = await DeleteAccountService.deactivateAccount(currentUser.id);
+              
+              if (result.success) {
+                Alert.alert(
+                  'Account Deactivated',
+                  'Your account has been deactivated successfully.',
+                  [{ 
+                    text: 'OK', 
+                    onPress: () => navigation.navigate('Login') // Navigate to your login screen
+                  }]
+                );
+              } else {
+                Alert.alert('Error', result.error || 'Failed to deactivate account.');
+              }
+            } catch (error) {
+              console.error('Deactivation error:', error);
+              Alert.alert('Error', 'An error occurred during account deactivation.');
+            } finally {
+              setIsLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleFinalDeletion = async () => {
     if (confirmationText !== 'DELETE') {
       Alert.alert('Error', 'Please type "DELETE" exactly as shown to confirm.');
       return;
     }
 
+    if (!currentUser?.email) {
+      Alert.alert('Error', 'Unable to verify user information. Please try again.');
+      return;
+    }
+
     Alert.alert(
       'Final Confirmation',
-      'Are you absolutely sure you want to delete your account? This action cannot be undone.',
+      'Are you absolutely sure you want to delete your account? This action cannot be undone and your account will be permanently deleted within 24 hours.',
       [
         { text: 'Cancel', style: 'cancel' },
         { 
           text: 'Delete Forever', 
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
             setIsLoading(true);
-            // Simulate account deletion process
-            setTimeout(() => {
-              setIsLoading(false);
-              Alert.alert(
-                'Account Deleted',
-                'Your account has been successfully deleted. Thank you for using our service.',
-                [{ 
-                  text: 'OK', 
-                  onPress: () => navigation.navigate('GoodbyeScreen') 
-                }]
+            
+            try {
+              const result = await DeleteAccountService.deleteAccount(
+                currentUser.email,
+                password,
+                selectedReasons,
+                customReason
               );
-            }, 2000);
+
+              if (result.success) {
+                Alert.alert(
+                  'Account Deletion Scheduled',
+                  'Your account has been scheduled for deletion and will be permanently removed within 24 hours. You have been signed out. Thank you for using our service.',
+                  [{ 
+                    text: 'OK', 
+                    onPress: () => navigation.navigate('GoodbyeScreen')
+                  }]
+                );
+              } else {
+                Alert.alert('Error', result.error || 'Failed to delete account.');
+              }
+            } catch (error) {
+              console.error('Account deletion error:', error);
+              Alert.alert('Error', 'An error occurred during account deletion.');
+            } finally {
+              setIsLoading(false);
+            }
           }
         }
       ]
     );
+  };
+
+  const handlePrivacySettings = () => {
+    // Navigate to privacy settings screen
+    navigation.navigate('PrivacySettings'); // Replace with your actual privacy settings screen
   };
 
   const DataItem = ({ icon, title, description }) => (
@@ -267,7 +367,11 @@ const DeleteAccountScreen = ({ navigation }) => {
       <View style={styles.alternativesContainer}>
         <Text style={styles.alternativesTitle}>Consider these alternatives:</Text>
         
-        <TouchableOpacity style={styles.alternativeButton}>
+        <TouchableOpacity 
+          style={styles.alternativeButton}
+          onPress={handleAccountDeactivation}
+          disabled={isLoading}
+        >
           <Ionicons name="pause-circle-outline" size={20} color="#007AFF" />
           <View style={styles.alternativeContent}>
             <Text style={styles.alternativeTitle}>Deactivate Instead</Text>
@@ -277,7 +381,10 @@ const DeleteAccountScreen = ({ navigation }) => {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.alternativeButton}>
+        <TouchableOpacity 
+          style={styles.alternativeButton}
+          onPress={handlePrivacySettings}
+        >
           <Ionicons name="shield-outline" size={20} color="#007AFF" />
           <View style={styles.alternativeContent}>
             <Text style={styles.alternativeTitle}>Adjust Privacy Settings</Text>
@@ -299,7 +406,7 @@ const DeleteAccountScreen = ({ navigation }) => {
         <TouchableOpacity
           style={[
             styles.deleteButton,
-            confirmationText !== 'DELETE' && styles.deleteButtonDisabled
+            (confirmationText !== 'DELETE' || isLoading) && styles.deleteButtonDisabled
           ]}
           onPress={handleFinalDeletion}
           disabled={confirmationText !== 'DELETE' || isLoading}
@@ -313,6 +420,18 @@ const DeleteAccountScreen = ({ navigation }) => {
       </View>
     </ScrollView>
   );
+
+  // Show loading screen while getting user info
+  if (!currentUser) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#9C3141" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -350,6 +469,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#8E8E93',
   },
   header: {
     flexDirection: 'row',
