@@ -1,95 +1,63 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 /**
  * A custom hook that provides greeting functionality based on time of day
- * @param {string} userName - Optional name to personalize the greeting
  * @returns {object} An object containing greeting state and functions
  */
-const useGreeting = (userName = '') => {
-  const [greeting, setGreeting] = useState('');
-  const [timeOfDay, setTimeOfDay] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+const useGreeting = () => {
+  const [currentHour, setCurrentHour] = useState(() => new Date().getHours());
 
-  // Generate appropriate greeting based on time of day
+  // Memoized time of day calculation
+  const timeOfDay = useMemo(() => {
+    if (currentHour >= 5 && currentHour < 12) return 'morning';
+    if (currentHour >= 12 && currentHour < 18) return 'afternoon';
+    return 'evening';
+  }, [currentHour]);
+
+  // Memoized greeting calculation
+  const greeting = useMemo(() => {
+    if (timeOfDay === 'morning') return 'Good morning';
+    if (timeOfDay === 'afternoon') return 'Good afternoon';
+    return 'Good evening';
+  }, [timeOfDay]);
+
+  // Memoized function to update current hour
+  const updateCurrentHour = useCallback(() => {
+    const newHour = new Date().getHours();
+    setCurrentHour(prevHour => prevHour !== newHour ? newHour : prevHour);
+  }, []);
+
+  // Set up interval to update greeting based on time changes
   useEffect(() => {
-    const generateGreeting = () => {
-      setIsLoading(true);
+    // Calculate milliseconds until next hour
+    const now = new Date();
+    const nextHour = new Date(now);
+    nextHour.setHours(now.getHours() + 1, 0, 0, 0);
+    const msUntilNextHour = nextHour.getTime() - now.getTime();
+
+    // Set initial timeout to sync with hour boundaries
+    const initialTimeout = setTimeout(() => {
+      updateCurrentHour();
       
-      const currentHour = new Date().getHours();
-      let newGreeting = '';
-      let newTimeOfDay = '';
+      // Then set up hourly interval
+      const intervalId = setInterval(updateCurrentHour, 60 * 60 * 1000); // Every hour
       
-      if (currentHour >= 5 && currentHour < 12) {
-        newGreeting = 'Good morning';
-        newTimeOfDay = 'morning';
-      } else if (currentHour >= 12 && currentHour < 18) {
-        newGreeting = 'Good afternoon';
-        newTimeOfDay = 'afternoon';
-      } else {
-        newGreeting = 'Good evening';
-        newTimeOfDay = 'evening';
-      }
-      
-      if (userName) {
-        newGreeting += `, ${userName}`;
-      }
-      
-      setGreeting(newGreeting);
-      setTimeOfDay(newTimeOfDay);
-      setIsLoading(false);
-    };
-    
-    // Generate greeting immediately
-    generateGreeting();
-    
-    // Set up interval to update greeting every minute
-    const intervalId = setInterval(generateGreeting, 60000);
-    
-    // Clean up interval on unmount
-    return () => clearInterval(intervalId);
-  }, [userName]);
-  
-  /**
-   * Update the username in the greeting
-   * @param {string} newName - New name to use in greeting
-   */
-  const updateUserName = (newName) => {
-    // This will trigger the useEffect to run again with the new name
-    userName = newName;
-  };
-  
-  /**
-   * Force refresh the greeting
-   */
-  const refreshGreeting = () => {
-    const currentHour = new Date().getHours();
-    let newGreeting = '';
-    let newTimeOfDay = '';
-    
-    if (currentHour >= 5 && currentHour < 12) {
-      newGreeting = 'Good morning';
-      newTimeOfDay = 'morning';
-    } else if (currentHour >= 12 && currentHour < 18) {
-      newGreeting = 'Good afternoon';
-      newTimeOfDay = 'afternoon';
-    } else {
-      newGreeting = 'Good evening';
-      newTimeOfDay = 'evening';
-    }
-    
-    if (userName) {
-      newGreeting += `, ${userName}`;
-    }
-    
-    setGreeting(newGreeting);
-    setTimeOfDay(newTimeOfDay);
-  };
-  
+      // Store interval ID for cleanup
+      return () => clearInterval(intervalId);
+    }, msUntilNextHour);
+
+    // Clean up timeout on unmount
+    return () => clearTimeout(initialTimeout);
+  }, [updateCurrentHour]);
+
+  // Memoized function to force refresh
+  const refreshGreeting = useCallback(() => {
+    updateCurrentHour();
+  }, [updateCurrentHour]);
+
   return { 
     greeting, 
     timeOfDay, 
-    isLoading, 
-    updateUserName,
     refreshGreeting
   };
 };
