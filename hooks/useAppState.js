@@ -29,9 +29,9 @@ export const useAppState = () => {
   }, []);
 
   // Memoized function to check onboarding status with caching
-  const checkOnboardingStatus = useCallback(async () => {
-    // Return cached result if available
-    if (onboardingCacheRef.current !== null) {
+  const checkOnboardingStatus = useCallback(async (forceRefresh = false) => {
+    // Return cached result if available and not forcing refresh
+    if (!forceRefresh && onboardingCacheRef.current !== null) {
       return onboardingCacheRef.current;
     }
 
@@ -86,7 +86,7 @@ export const useAppState = () => {
   }, []);
 
   // Main app state determination logic
-  const determineAppState = useCallback(async () => {
+  const determineAppState = useCallback(async (forceOnboardingCheck = false) => {
     // Early return if component is unmounted
     if (!mountedRef.current) return;
     
@@ -119,7 +119,7 @@ export const useAppState = () => {
       }
 
       // Check onboarding status only if user is authenticated
-      const hasCompletedOnboarding = await checkOnboardingStatus();
+      const hasCompletedOnboarding = await checkOnboardingStatus(forceOnboardingCheck);
       
       if (!mountedRef.current) return;
       
@@ -150,12 +150,46 @@ export const useAppState = () => {
     determineAppState();
   }, [determineAppState]);
 
+  // Listen for AsyncStorage changes (onboarding completion)
+  useEffect(() => {
+    let intervalId;
+    
+    // Poll for onboarding completion changes
+    // This is a simple way to detect changes without complex event systems
+    if (appState === APP_STATES.ONBOARDING) {
+      intervalId = setInterval(async () => {
+        try {
+          const onboardingComplete = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE);
+          if (onboardingComplete === 'true' && onboardingCacheRef.current !== true) {
+            // Onboarding was just completed, refresh app state
+            onboardingCacheRef.current = null; // Clear cache
+            determineAppState(true); // Force refresh
+          }
+        } catch (error) {
+          console.error('Error polling onboarding status:', error);
+        }
+      }, 1000); // Check every second when in onboarding state
+    }
+    
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [appState, determineAppState]);
+
   // Optimized refresh function that clears caches
   const refreshAppState = useCallback(() => {
     // Clear caches on manual refresh
     onboardingCacheRef.current = null;
     sessionValidationRef.current.clear();
-    determineAppState();
+    determineAppState(true);
+  }, [determineAppState]);
+
+  // Function to handle onboarding completion from external components
+  const handleOnboardingComplete = useCallback(() => {
+    onboardingCacheRef.current = null; // Clear cache
+    determineAppState(true); // Force refresh with onboarding check
   }, [determineAppState]);
 
   return {
@@ -163,6 +197,7 @@ export const useAppState = () => {
     initialRoute,
     error,
     isReady: appState !== null && initialRoute !== null,
-    refreshAppState
+    refreshAppState,
+    handleOnboardingComplete
   };
 };
