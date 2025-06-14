@@ -1,5 +1,5 @@
-// hooks/useLoginActivity.js - Enhanced version
-import { useState, useEffect } from 'react';
+// hooks/useLoginActivity.js - Optimized version
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { getDeviceInfo, getClientIP, getLocationFromIP, formatTimeAgo, isValidIP } from '../utils/deviceUtils';
 
@@ -7,9 +7,22 @@ export const useLoginActivity = () => {
   const [loginActivities, setLoginActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Refs to prevent duplicate operations
+  const isRecordingRef = useRef(false);
+  const recordedSessionsRef = useRef(new Set());
+  const abortControllerRef = useRef(null);
 
-  const fetchLoginActivities = async () => {
+  // Memoized fetch function
+  const fetchLoginActivities = useCallback(async () => {
     try {
+      // Cancel any ongoing fetch
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      abortControllerRef.current = new AbortController();
+      
       setLoading(true);
       setError(null);
       
@@ -19,8 +32,8 @@ export const useLoginActivity = () => {
 
       if (error) throw error;
       
-      // Transform the data to match your component's expected format
-      const transformedData = data.map(activity => ({
+      // Transform the data efficiently
+      const transformedData = data?.map(activity => ({
         id: activity.id,
         device_info: activity.device_info,
         location: activity.location,
@@ -32,49 +45,75 @@ export const useLoginActivity = () => {
         user_agent: activity.user_agent,
         suspicious: checkSuspiciousActivity(activity),
         raw_data: activity
-      }));
+      })) || [];
 
       setLoginActivities(transformedData);
     } catch (err) {
-      console.error('Error fetching login activities:', err);
-      setError(err.message);
+      if (err.name !== 'AbortError') {
+        console.error('Error fetching login activities:', err);
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const recordLoginActivity = async (sessionId = null) => {
+  // Optimized record function with deduplication
+  const recordLoginActivity = useCallback(async (sessionId = null, force = false) => {
+    // Prevent concurrent recording unless forced
+    if (isRecordingRef.current && !force) {
+      console.log('Login activity recording already in progress');
+      return null;
+    }
+
+    // Check if session was already recorded (prevents duplicates)
+    const finalSessionId = sessionId || generateSessionId();
+    if (recordedSessionsRef.current.has(finalSessionId) && !force) {
+      console.log('Session already recorded:', finalSessionId);
+      return null;
+    }
+
     try {
-      // Get comprehensive device information
-      const deviceInfo = await getDeviceInfo();
+      isRecordingRef.current = true;
       
-      // Get IP address from multiple sources
-      let ipAddress = await getClientIP();
+      // Mark session as being recorded
+      recordedSessionsRef.current.add(finalSessionId);
       
-      // Fallback to detecting IP from request headers if available
-      if (!ipAddress || !isValidIP(ipAddress)) {
-        try {
-          // This would typically be handled by your backend
-          const response = await fetch('/api/get-client-ip');
-          const data = await response.json();
-          ipAddress = data.ip;
-        } catch (e) {
-          console.warn('Could not get IP from backend:', e);
+      // Get current user first
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('No authenticated user');
+
+      // Check if activity already exists in database
+      if (!force) {
+        const { data: existingActivity } = await supabase
+          .from('login_activities')
+          .select('id')
+          .eq('session_id', finalSessionId)
+          .eq('user_id', user.id)
+          .single();
+        
+        if (existingActivity) {
+          console.log('Login activity already exists for session:', finalSessionId);
+          return { success: true, existing: true, sessionId: finalSessionId };
         }
       }
       
+      // Get device information in parallel
+      const [deviceInfo, ipAddress] = await Promise.all([
+        getDeviceInfo(),
+        getClientIP()
+      ]);
+      
       // Get location information
       let locationData = null;
-      if (ipAddress) {
-        locationData = await getLocationFromIP(ipAddress);
+      if (ipAddress && isValidIP(ipAddress)) {
+        try {
+          locationData = await getLocationFromIP(ipAddress);
+        } catch (e) {
+          console.warn('Could not get location data:', e);
+        }
       }
-      
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      
-      // Generate session ID if not provided
-      const finalSessionId = sessionId || generateSessionId();
       
       // Record the login activity
       const { data, error } = await supabase.rpc('record_login_activity', {
@@ -88,7 +127,7 @@ export const useLoginActivity = () => {
 
       if (error) throw error;
       
-      // Refresh the activities list
+      // Refresh the activities list only if successful
       await fetchLoginActivities();
       
       return {
@@ -101,17 +140,24 @@ export const useLoginActivity = () => {
       };
     } catch (err) {
       console.error('Error recording login activity:', err);
+      // Remove from recorded sessions on error
+      recordedSessionsRef.current.delete(finalSessionId);
       throw err;
+    } finally {
+      isRecordingRef.current = false;
     }
-  };
+  }, [fetchLoginActivities]);
 
-  const endSession = async (sessionId) => {
+  const endSession = useCallback(async (sessionId) => {
     try {
       const { data, error } = await supabase.rpc('end_login_session', {
         p_session_id: sessionId
       });
 
       if (error) throw error;
+      
+      // Remove from recorded sessions
+      recordedSessionsRef.current.delete(sessionId);
       
       // Refresh the activities list
       await fetchLoginActivities();
@@ -121,9 +167,9 @@ export const useLoginActivity = () => {
       console.error('Error ending session:', err);
       throw err;
     }
-  };
+  }, [fetchLoginActivities]);
 
-  const endAllOtherSessions = async () => {
+  const endAllOtherSessions = useCallback(async () => {
     try {
       // Get current session
       const { data: { session } } = await supabase.auth.getSession();
@@ -140,6 +186,10 @@ export const useLoginActivity = () => {
       
       if (error) throw error;
       
+      // Clear recorded sessions except current
+      const newRecorded = new Set([currentSessionId]);
+      recordedSessionsRef.current = newRecorded;
+      
       // Refresh the activities list
       await fetchLoginActivities();
       
@@ -148,9 +198,9 @@ export const useLoginActivity = () => {
       console.error('Error ending all other sessions:', err);
       throw err;
     }
-  };
+  }, [fetchLoginActivities]);
 
-  const reportSuspiciousActivity = async (activityId, reason = 'User reported') => {
+  const reportSuspiciousActivity = useCallback(async (activityId, reason = 'User reported') => {
     try {
       const { error } = await supabase
         .from('login_activities')
@@ -159,7 +209,7 @@ export const useLoginActivity = () => {
             COALESCE(device_info, '{}'::jsonb) || jsonb_build_object(
               'suspicious', true,
               'reported_at', '${new Date().toISOString()}',
-              'report_reason', '${reason}'
+              'report_reason', '${reason.replace(/'/g, "''")}'
             )
           `)
         })
@@ -175,13 +225,15 @@ export const useLoginActivity = () => {
       console.error('Error reporting suspicious activity:', err);
       throw err;
     }
-  };
+  }, [fetchLoginActivities]);
 
-  const getSessionInfo = async () => {
+  const getSessionInfo = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const deviceInfo = await getDeviceInfo();
-      const ipAddress = await getClientIP();
+      const [deviceInfo, ipAddress] = await Promise.all([
+        getDeviceInfo(),
+        getClientIP()
+      ]);
       
       return {
         sessionId: session?.access_token,
@@ -193,56 +245,84 @@ export const useLoginActivity = () => {
       console.error('Error getting session info:', err);
       return null;
     }
-  };
+  }, []);
 
-  // Auto-record login activity when hook is first used
+  // Initialize login tracking on mount
   useEffect(() => {
+    let isMounted = true;
+    
     const initializeLoginTracking = async () => {
       try {
         // Check if we have a valid session
         const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          // Check if this session is already recorded
-          const { data: existingActivity } = await supabase
-            .from('login_activities')
-            .select('id')
-            .eq('session_id', session.access_token)
-            .eq('is_current', true)
-            .single();
-          
-          if (!existingActivity) {
-            // Record this login activity
-            await recordLoginActivity(session.access_token);
-          }
+        if (!session || !isMounted) return;
+        
+        const sessionId = session.access_token;
+        
+        // Check if this session is already recorded in database
+        const { data: existingActivity } = await supabase
+          .from('login_activities')
+          .select('id, session_id')
+          .eq('session_id', sessionId)
+          .eq('is_current', true)
+          .maybeSingle(); // Use maybeSingle to avoid errors when no record exists
+        
+        if (!existingActivity && isMounted) {
+          // Record this login activity only if not already recorded
+          await recordLoginActivity(sessionId);
+        } else if (existingActivity) {
+          // Mark as recorded to prevent duplicates
+          recordedSessionsRef.current.add(sessionId);
         }
       } catch (err) {
         console.warn('Could not initialize login tracking:', err);
       }
       
       // Fetch existing activities regardless
-      await fetchLoginActivities();
+      if (isMounted) {
+        await fetchLoginActivities();
+      }
     };
     
     initializeLoginTracking();
-  }, []);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [recordLoginActivity, fetchLoginActivities]);
 
-  // Listen for auth state changes
+  // Listen for auth state changes with deduplication
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session) {
-          try {
-            await recordLoginActivity(session.access_token);
-          } catch (err) {
-            console.warn('Could not record login activity:', err);
+          const sessionId = session.access_token;
+          
+          // Only record if not already recorded and not currently recording
+          if (!recordedSessionsRef.current.has(sessionId) && !isRecordingRef.current) {
+            try {
+              await recordLoginActivity(sessionId);
+            } catch (err) {
+              console.warn('Could not record login activity on auth change:', err);
+            }
           }
         } else if (event === 'SIGNED_OUT') {
           setLoginActivities([]);
+          recordedSessionsRef.current.clear();
         }
       }
     );
 
     return () => subscription.unsubscribe();
+  }, [recordLoginActivity]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
 
   return {
