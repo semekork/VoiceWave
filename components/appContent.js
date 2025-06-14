@@ -13,8 +13,6 @@ import MainNavigator from '../navigation/MainNavigator';
 // Hooks
 import { useAppState } from '../hooks/useAppState';
 
-// Components
-import LoadingScreen from './LoadingScreen';
 
 //Services
 import NotificationService from '../services/NotificationService';
@@ -47,7 +45,7 @@ function AppContent() {
 
   // Show loading screen while determining app state
   if (!isReady) {
-    return <LoadingScreen />;
+    
   }
 
   return (
