@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Animated, Vibration } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function PlayerControls({
@@ -30,9 +30,6 @@ export default function PlayerControls({
   }, [isPlaying]);
 
   const animateButton = (scaleValue, callback) => {
-    // Haptic feedback
-    Vibration.vibrate(50);
-    
     Animated.sequence([
       Animated.timing(scaleValue, {
         toValue: 0.85,
