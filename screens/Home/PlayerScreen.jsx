@@ -56,17 +56,12 @@ export default function PlayerScreen({ navigation, route }) {
                       podcastInfo.podcastTitle || 
                       'Unknown Title';
                       
-  const podcastSubtitle = routeParams.podcastSubtitle || 
-                         podcastInfo.subtitle || 
-                         podcastInfo.podcastSubtitle || 
-                         podcastInfo.author || 
-                         'Unknown Artist';
                          
   const podcastImage = routeParams.podcastImage || 
                       podcastInfo.image || 
                       podcastInfo.podcastImage || 
                       podcastInfo.artwork || 
-                      require('../../assets/gratitude.jpeg'); 
+                      require("../../assets/gratitude.jpeg"); 
 
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const menuAnimation = useRef(new Animated.Value(0)).current;
@@ -176,9 +171,6 @@ export default function PlayerScreen({ navigation, route }) {
 
       {/* Podcast Info */}
       <View style={styles.infoContainer}>
-        <Text style={styles.subTitle} numberOfLines={2}>
-          {podcastSubtitle}
-        </Text>
         <Text style={styles.title} numberOfLines={3}>
           {podcastTitle}
         </Text>
@@ -291,18 +283,12 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH * 0.8,
     height: SCREEN_WIDTH * 0.8,
     borderRadius: 20,
-    backgroundColor: '#E0E0E0', // Fallback background color
+    backgroundColor: '#E0E0E0', 
   },
   infoContainer: {
     alignItems: 'center',
     marginBottom: 30,
     paddingHorizontal: 20,
-  },
-  subTitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 8,
-    textAlign: 'center',
   },
   title: {
     fontSize: 24,
