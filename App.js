@@ -7,7 +7,7 @@ import { AudioPlayerProvider } from './context/AudioPlayerContext';
 import { ProfileImageProvider } from './context/ProfileImageContext';
 
 // Main App Content
-import AppContent from './components/appContent';
+import AppContent from './navigation/appContent';
 
 // React Native Gesture Handler import
 import 'react-native-gesture-handler';
