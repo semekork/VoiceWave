@@ -12,7 +12,6 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../lib/supabase'; 
 import { useDataExport } from '../../utils/useDataExport';
 
 const PrivacyScreen = ({ navigation }) => {
