@@ -15,7 +15,7 @@ import SupportScreen from "../screens/Settings/SupportScreen";
 import TermsScreen from "../screens/Settings/TermsScreen";
 import AboutScreen from "../screens/Settings/AboutScreen";
 import ReleaseNotes from "../screens/Settings/ReleaseNotes";
-import PodcastDetailScreen from "../screens/Details/PodcastDetailsScreen";
+import PodcastDetailScreen from "../screens/Home/PodcastDetailsScreen";
 import EqualizerScreen from "../components/Equalizer";
 import DeleteAccountScreen from "../screens/Auth/DeleteAccount";
 import GoodbyeScreen from "../screens/Profile/GoodbyeScreen";
