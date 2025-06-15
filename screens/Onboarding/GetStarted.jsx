@@ -196,7 +196,8 @@ const GetStarted = ({ onGetStarted, onOnboardingComplete }) => {
       // Verify it was saved successfully
       const saved = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE || 'onboarding_complete');
       console.log('Onboarding completion saved:', saved);
-      
+      // Navigate to the main app screen
+      navigation.navigate('AuthStack');
       // Call the onboarding completion callback first
       if (onOnboardingComplete) {
         onOnboardingComplete();
