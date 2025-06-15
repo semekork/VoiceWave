@@ -23,7 +23,7 @@ const RootStack = createNativeStackNavigator();
 const LoadingScreen = () => (
   <View style={styles.loadingContainer}>
     <ActivityIndicator size="large" color="#9C3141" />
-    <Text style={styles.loadingText}>Loading...</Text>
+    
   </View>
 );
 
@@ -137,11 +137,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#1E1E1E',
-  },
-  loadingText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    marginTop: 16,
   },
   errorContainer: {
     flex: 1,
