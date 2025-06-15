@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Authentication
 import { useAuth, loginService } from '../services/loginService';
-
-// Constants
 import { STORAGE_KEYS, APP_STATES } from '../constants/appContants';
 import { SCREEN_NAMES } from '../navigation/types';
 
@@ -89,7 +85,6 @@ export const useAppState = () => {
   const determineAppState = useCallback(async (forceOnboardingCheck = false) => {
     // Early return if component is unmounted
     if (!mountedRef.current) return;
-    
     try {
       setError(null);
 
