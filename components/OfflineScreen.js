@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,36 +7,55 @@ import {
   Animated,
   Dimensions,
   StatusBar,
+  SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
-import NetInfo from '@react-native-netinfo/netinfo';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import NetInfo from '@react-native-community/netinfo';
+import * as Haptics from 'expo-haptics';
 
-const { width, height } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const OfflineScreen = ({ onRetry, onGoOffline }) => {
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(50));
+  const [scaleAnim] = useState(new Animated.Value(0.9));
   const [pulseAnim] = useState(new Animated.Value(1));
+  const [buttonScaleAnim] = useState(new Animated.Value(1));
   const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
-    // Fade in animation
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
+    // Entrance animations matching LoginScreen
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
     // Pulse animation for the icon
     const pulseAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 1000,
+          toValue: 1.1,
+          duration: 1500,
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 1000,
+          duration: 1500,
           useNativeDriver: true,
         }),
       ])
@@ -44,9 +63,27 @@ const OfflineScreen = ({ onRetry, onGoOffline }) => {
     pulseAnimation.start();
 
     return () => pulseAnimation.stop();
-  }, [fadeAnim, pulseAnim]);
+  }, [fadeAnim, slideAnim, scaleAnim, pulseAnim]);
+
+  // Enhanced button press animation matching LoginScreen
+  const animateButtonPress = () => {
+    Animated.sequence([
+      Animated.timing(buttonScaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(buttonScaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
   const handleRetry = async () => {
+    animateButtonPress();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsRetrying(true);
     
     try {
@@ -55,219 +92,359 @@ const OfflineScreen = ({ onRetry, onGoOffline }) => {
       
       if (netInfo.isConnected && netInfo.isInternetReachable) {
         // Connection is back, notify parent component
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         onRetry?.();
       } else {
         // Still offline, show feedback
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setTimeout(() => setIsRetrying(false), 1500);
       }
     } catch (error) {
       console.error('Error checking network:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setTimeout(() => setIsRetrying(false), 1500);
     }
   };
 
   const handleGoOffline = () => {
+    Haptics.selectionAsync();
     onGoOffline?.();
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a1a1a" />
-      
-      <Animated.View 
-        style={[
-          styles.content,
-          { opacity: fadeAnim }
-        ]}
-      >
-        {/* Animated WiFi Off Icon */}
-        <Animated.View 
-          style={[
-            styles.iconContainer,
-            { transform: [{ scale: pulseAnim }] }
-          ]}
-        >
-          <Icon 
-            name="wifi-off" 
-            size={80} 
-            color="#ff6b6b" 
-          />
-        </Animated.View>
-
-        {/* Main Message */}
-        <Text style={styles.title}>You're Offline</Text>
-        <Text style={styles.subtitle}>
-          Check your internet connection and try again
-        </Text>
-
-        {/* Connection Status */}
-        <View style={styles.statusContainer}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>No Internet Connection</Text>
-        </View>
-
-        {/* Action Buttons */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
+    <>
+      <StatusBar barStyle="light-content" backgroundColor="#9C3141" />
+      <LinearGradient colors={["#9C3141", "#5E1B26"]} style={styles.background}>
+        <SafeAreaView style={styles.safeContainer}>
+          <Animated.View
             style={[
-              styles.button,
-              styles.primaryButton,
-              isRetrying && styles.buttonDisabled
+              styles.animatedContainer,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+              },
             ]}
-            onPress={handleRetry}
-            disabled={isRetrying}
-            activeOpacity={0.8}
           >
-            <Icon 
-              name={isRetrying ? "hourglass-empty" : "refresh"} 
-              size={20} 
-              color="#ffffff" 
-              style={styles.buttonIcon}
-            />
-            <Text style={styles.buttonTextPrimary}>
-              {isRetrying ? 'Checking...' : 'Try Again'}
-            </Text>
-          </TouchableOpacity>
+            {/* Background "OFFLINE" Letters */}
+            <View
+              style={styles.backgroundLetters}
+              accessibilityElementsHidden={true}
+            >
+              <Text style={styles.backgroundLettersText}>OFF{"\n"}LINE</Text>
+            </View>
 
-          <TouchableOpacity
-            style={[styles.button, styles.secondaryButton]}
-            onPress={handleGoOffline}
-            activeOpacity={0.8}
-          >
-            <Icon 
-              name="offline-bolt" 
-              size={20} 
-              color="#4a9eff" 
-              style={styles.buttonIcon}
-            />
-            <Text style={styles.buttonTextSecondary}>Continue Offline</Text>
-          </TouchableOpacity>
-        </View>
+            {/* Main Content */}
+            <View style={styles.contentSection}>
+              {/* Animated WiFi Off Icon */}
+              <Animated.View 
+                style={[
+                  styles.iconContainer,
+                  { transform: [{ scale: pulseAnim }] }
+                ]}
+              >
+                <Ionicons 
+                  name="wifi-outline" 
+                  size={80} 
+                  color="#FFFFFF" 
+                  style={styles.wifiIcon}
+                />
+                <View style={styles.iconSlash} />
+              </Animated.View>
 
-        {/* Tips Section */}
-        <View style={styles.tipsContainer}>
-          <Text style={styles.tipsTitle}>Quick fixes:</Text>
-          <Text style={styles.tipItem}>• Check your WiFi or mobile data</Text>
-          <Text style={styles.tipItem}>• Move to an area with better signal</Text>
-          <Text style={styles.tipItem}>• Restart your router if using WiFi</Text>
-        </View>
-      </Animated.View>
-    </View>
+              {/* Title Section */}
+              <View style={styles.titleContainer}>
+                <Text style={styles.titleText} accessibilityRole="header">
+                  YOU'RE OFFLINE
+                </Text>
+              </View>
+
+              <View style={styles.subtitleContainer}>
+                <Text style={styles.subtitleText}>
+                  Check your internet connection and try again
+                </Text>
+              </View>
+
+              {/* Connection Status */}
+              <View style={styles.statusContainer}>
+                <View style={styles.statusDot} />
+                <Text style={styles.statusText}>No Internet Connection</Text>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.buttonContainer}>
+                {/* Retry Button */}
+                <TouchableOpacity
+                  onPress={handleRetry}
+                  disabled={isRetrying}
+                  accessibilityLabel="Retry connection"
+                  accessibilityRole="button"
+                  accessibilityHint="Double tap to check internet connection"
+                  activeOpacity={0.8}
+                >
+                  <Animated.View
+                    style={{ transform: [{ scale: buttonScaleAnim }] }}
+                  >
+                    <LinearGradient
+                      colors={
+                        isRetrying
+                          ? ["#7A94B5", "#A8C1DC"]
+                          : ["#1963A7", "#49A1D1"]
+                      }
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[
+                        styles.primaryButton,
+                        isRetrying && styles.buttonDisabled,
+                      ]}
+                    >
+                      {isRetrying ? (
+                        <View style={styles.loadingContainer}>
+                          <ActivityIndicator color="#FFFFFF" size="small" />
+                          <Text style={styles.primaryButtonText}>
+                            Checking...
+                          </Text>
+                        </View>
+                      ) : (
+                        <>
+                          <Ionicons 
+                            name="refresh-outline" 
+                            size={20} 
+                            color="#FFFFFF" 
+                            style={styles.buttonIcon}
+                          />
+                          <Text style={styles.primaryButtonText}>Try Again</Text>
+                        </>
+                      )}
+                    </LinearGradient>
+                  </Animated.View>
+                </TouchableOpacity>
+
+                {/* Continue Offline Button */}
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={handleGoOffline}
+                  accessibilityLabel="Continue offline"
+                  accessibilityRole="button"
+                  activeOpacity={0.8}
+                >
+                  <Ionicons 
+                    name="cloud-offline-outline" 
+                    size={20} 
+                    color="#FFFFFF" 
+                    style={styles.buttonIcon}
+                  />
+                  <Text style={styles.secondaryButtonText}>Continue Offline</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Tips Section */}
+              <View style={styles.tipsContainer}>
+                <Text style={styles.tipsTitle}>Quick fixes:</Text>
+                <Text style={styles.tipItem}>• Check your WiFi or mobile data</Text>
+                <Text style={styles.tipItem}>• Move to an area with better signal</Text>
+                <Text style={styles.tipItem}>• Restart your router if using WiFi</Text>
+              </View>
+            </View>
+          </Animated.View>
+        </SafeAreaView>
+      </LinearGradient>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  background: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
-    justifyContent: 'center',
-    alignItems: 'center',
+  },
+  safeContainer: {
+    flex: 1,
     paddingHorizontal: 24,
   },
-  content: {
+  animatedContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  // Background Letters (matching LoginScreen)
+  backgroundLetters: {
+    position: "absolute",
+    bottom: -60,
+    left: 0,
+    right: 0,
+    zIndex: 0,
+    height: "70%",
+    justifyContent: "flex-start",
+    alignItems: "flex-start",
+    opacity: 0.08,
+  },
+  backgroundLettersText: {
+    color: "#FFFFFF",
+    fontSize: Math.min(screenWidth * 0.4, 160),
+    fontWeight: "bold",
+    lineHeight: Math.min(screenWidth * 0.5, 200),
+  },
+
+  // Main Content
+  contentSection: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
     width: '100%',
     maxWidth: 400,
   },
+
+  // Icon Section
   iconContainer: {
     marginBottom: 32,
     padding: 20,
     borderRadius: 100,
-    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    position: 'relative',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 12,
+  wifiIcon: {
+    opacity: 0.8,
+  },
+  iconSlash: {
+    position: 'absolute',
+    top: 15,
+    left: 15,
+    right: 15,
+    bottom: 15,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: '#FF3B30',
+    transform: [{ rotate: '45deg' }],
+  },
+
+  // Title Section (matching LoginScreen)
+  titleContainer: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  titleText: {
+    color: "#FFFFFF",
+    fontSize: Math.min(screenWidth * 0.08, 32),
+    fontWeight: "bold",
+    letterSpacing: 1,
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
     textAlign: 'center',
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#a0a0a0',
-    textAlign: 'center',
-    lineHeight: 24,
+  subtitleContainer: {
+    alignItems: 'center',
     marginBottom: 32,
   },
+  subtitleText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "300",
+    opacity: 0.9,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+
+  // Status Section
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 40,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    backgroundColor: 'rgba(255, 59, 48, 0.15)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 107, 107, 0.3)',
+    borderColor: 'rgba(255, 59, 48, 0.3)',
   },
   statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#ff6b6b',
+    backgroundColor: '#FF3B30',
     marginRight: 8,
   },
   statusText: {
-    color: '#ff6b6b',
+    color: '#FF3B30',
     fontSize: 14,
     fontWeight: '500',
   },
+
+  // Buttons (matching LoginScreen style)
   buttonContainer: {
     width: '100%',
     marginBottom: 40,
   },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
   primaryButton: {
-    backgroundColor: '#4a9eff',
+    width: "100%",
+    borderRadius: 12,
+    paddingVertical: 18,
+    alignItems: "center",
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   secondaryButton: {
-    backgroundColor: 'transparent',
+    width: "100%",
+    borderRadius: 12,
+    paddingVertical: 18,
+    alignItems: "center",
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
-    borderColor: '#4a9eff',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.8,
   },
   buttonIcon: {
     marginRight: 8,
   },
-  buttonTextPrimary: {
-    color: '#ffffff',
+  primaryButtonText: {
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "bold",
   },
-  buttonTextSecondary: {
-    color: '#4a9eff',
+  secondaryButtonText: {
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  // Tips Section
   tipsContainer: {
     width: '100%',
     padding: 20,
-    backgroundColor: 'rgba(74, 158, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(74, 158, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   tipsTitle: {
-    color: '#4a9eff',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
   },
   tipItem: {
-    color: '#c0c0c0',
+    color: '#FFFFFF',
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 4,
+    opacity: 0.8,
   },
 });
 
