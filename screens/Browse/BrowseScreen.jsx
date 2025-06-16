@@ -15,7 +15,7 @@ import {
   ImageBackground,
   Platform
 } from 'react-native';
-import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext';
@@ -453,7 +453,7 @@ export default function BrowseScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
       <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
         <BlurView intensity={100} style={styles.headerBlur}>
           <LinearGradient
