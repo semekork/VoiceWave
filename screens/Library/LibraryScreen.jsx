@@ -554,8 +554,6 @@ export default function LibraryScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-      
-      {/* Enhanced Animated Header */}
       <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
         <BlurView intensity={80} style={styles.headerBlur}>
           <View style={styles.headerContent}>
