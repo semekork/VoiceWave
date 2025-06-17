@@ -1,6 +1,5 @@
-// hooks/useChatSession.js
 import { useState, useCallback, useRef } from 'react';
-import { OpenAIService } from '../utils/openaiService';
+import { HuggingFaceService } from '../utils/huggingfaceService';
 
 export const useChatSession = () => {
   const [chatSession, setChatSession] = useState(null);
@@ -8,16 +7,16 @@ export const useChatSession = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  const openaiService = useRef(new OpenAIService()).current;
+  const huggingfaceService = useRef(new HuggingFaceService()).current;
 
   const initializeSession = useCallback(async () => {
     try {
       setError(null);
       
-      // Validate API key first
-      const isValidKey = await openaiService.validateApiKey();
-      if (!isValidKey) {
-        throw new Error('Invalid or missing OpenAI API key. Please check your .env configuration.');
+      // Validate Hugging Face API key
+      const validation = await huggingfaceService.validateApiKey();
+      if (!validation.valid) {
+        throw new Error(`Invalid or missing Hugging Face API key: ${validation.error}. Please check your .env configuration and get your free key at https://huggingface.co/settings/tokens`);
       }
 
       const sessionId = `chat_${Date.now()}`;
@@ -25,13 +24,13 @@ export const useChatSession = () => {
         id: sessionId,
         startTime: new Date(),
         isActive: true,
-        provider: 'openai'
+        provider: 'huggingface'
       });
       
       // Add welcome message
       const welcomeMessage = {
         id: `msg_${Date.now()}`,
-        text: "Hi! I'm Dameah, your AI assistant powered by OpenAI. How can I help you today?",
+        text: "Hi! I'm Dameah, your AI assistant powered by Hugging Face. How can I help you today?",
         sender: 'agent',
         timestamp: new Date().toISOString(),
         status: 'delivered',
@@ -46,7 +45,7 @@ export const useChatSession = () => {
       // Add error message to show user what went wrong
       const errorMessage = {
         id: `msg_${Date.now()}`,
-        text: `Sorry, I couldn't initialize the chat session: ${err.message}. Please check your API configuration.`,
+        text: `Sorry, I couldn't initialize the chat session: ${err.message}. Please check your Hugging Face API configuration.`,
         sender: 'agent',
         timestamp: new Date().toISOString(),
         status: 'delivered',
@@ -56,7 +55,7 @@ export const useChatSession = () => {
       
       setMessages([errorMessage]);
     }
-  }, [openaiService]);
+  }, [huggingfaceService]);
 
   const sendMessage = useCallback(async (messageText) => {
     if (!messageText.trim()) return;
@@ -85,8 +84,8 @@ export const useChatSession = () => {
         )
       );
 
-      // Get OpenAI response
-      const aiResponse = await openaiService.sendMessage(messageText, messages);
+      // Get Hugging Face response
+      const aiResponse = await huggingfaceService.sendMessage(messageText, messages);
 
       // Add AI message
       const aiMessage = {
@@ -135,9 +134,9 @@ export const useChatSession = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [messages, openaiService]);
+  }, [messages, huggingfaceService]);
 
-  // Enhanced streaming version
+  // Streaming version
   const sendMessageStream = useCallback(async (messageText) => {
     if (!messageText.trim()) return;
 
@@ -175,7 +174,7 @@ export const useChatSession = () => {
     ]);
 
     try {
-      await openaiService.sendMessageStream(
+      await huggingfaceService.sendMessageStream(
         messageText, 
         messages,
         // onChunk callback - updates message as it streams
@@ -228,11 +227,79 @@ export const useChatSession = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [messages, openaiService]);
+  }, [messages, huggingfaceService]);
+
+  // Switch between different Hugging Face models
+  const switchModel = useCallback(async (modelType) => {
+    try {
+      await huggingfaceService.switchModel(modelType);
+      
+      const switchMessage = {
+        id: `msg_${Date.now()}`,
+        text: `Switched to ${modelType} model. The conversation style may change slightly.`,
+        sender: 'agent',
+        timestamp: new Date().toISOString(),
+        status: 'delivered',
+        agentName: 'System',
+        isSystemMessage: true
+      };
+      
+      setMessages(prev => [...prev, switchMessage]);
+    } catch (err) {
+      setError(`Failed to switch model: ${err.message}`);
+    }
+  }, [huggingfaceService]);
+
+  // Get available models and current model info
+  const getModelInfo = useCallback(() => {
+    return huggingfaceService.getAvailableModels();
+  }, [huggingfaceService]);
+
+  // Test the Hugging Face connection
+  const testConnection = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const validation = await huggingfaceService.validateApiKey();
+      
+      const testMessage = {
+        id: `msg_${Date.now()}`,
+        text: validation.valid 
+          ? '✅ Hugging Face connection is working properly!' 
+          : `❌ Connection failed: ${validation.error}`,
+        sender: 'agent',
+        timestamp: new Date().toISOString(),
+        status: 'delivered',
+        agentName: 'System',
+        isSystemMessage: true
+      };
+      
+      setMessages(prev => [...prev, testMessage]);
+      return validation.valid;
+    } catch (err) {
+      setError(`Connection test failed: ${err.message}`);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [huggingfaceService]);
 
   const endSession = useCallback(async () => {
     try {
       setChatSession(prev => prev ? { ...prev, isActive: false, endTime: new Date() } : null);
+      
+      // Add goodbye message
+      const goodbyeMessage = {
+        id: `msg_${Date.now()}`,
+        text: "Session ended. Thanks for chatting with me!",
+        sender: 'agent',
+        timestamp: new Date().toISOString(),
+        status: 'delivered',
+        agentName: 'Dameah',
+        isSystemMessage: true
+      };
+      
+      setMessages(prev => [...prev, goodbyeMessage]);
+      
       // Save conversation history to AsyncStorage if needed
       // await AsyncStorage.setItem(`chat_${chatSession?.id}`, JSON.stringify(messages));
     } catch (err) {
@@ -245,6 +312,10 @@ export const useChatSession = () => {
     setError(null);
   }, []);
 
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
+
   return {
     chatSession,
     messages,
@@ -253,7 +324,11 @@ export const useChatSession = () => {
     initializeSession,
     sendMessage,
     sendMessageStream,
+    switchModel,
+    getModelInfo,
+    testConnection,
     endSession,
-    clearError
+    clearError,
+    clearMessages
   };
 };
