@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 // Import custom hooks
 import { useChatSession } from '../../hooks/useChatSession';
@@ -30,7 +31,6 @@ const { width, height } = Dimensions.get('window');
 const LiveChatScreen = ({ navigation }) => {
   
   const {chatSession,messages,isLoading,error,initializeSession,sendMessage,endSession,clearError} = useChatSession();
-
   const {fadeAnim,slideAnim,typingDots} = useChatAnimations();
 
   const {
@@ -58,7 +58,7 @@ const LiveChatScreen = ({ navigation }) => {
       updateConnectionStatus('connected');
     } catch (error) {
       updateConnectionStatus('error');
-      throw error; // Re-throw to let useChatInput handle the error
+      throw error;
     } finally {
       stopTyping();
     }
@@ -126,13 +126,13 @@ const LiveChatScreen = ({ navigation }) => {
     );
   };
 
-  // Get message status icon
+  
   const getMessageStatusIcon = (status) => {
     switch (status) {
       case 'sending':
-        return <Ionicons name="time-outline" size={12} color="#C7C7CC" />;
+        return <Ionicons name="time-outline" size={12} color="rgba(255, 255, 255, 0.7)" />;
       case 'sent':
-        return <Ionicons name="checkmark" size={12} color="#C7C7CC" />;
+        return <Ionicons name="checkmark" size={12} color="rgba(255, 255, 255, 0.7)" />;
       case 'delivered':
         return <Ionicons name="checkmark-done" size={12} color="#34C759" />;
       default:
@@ -151,9 +151,11 @@ const LiveChatScreen = ({ navigation }) => {
       <View key={item.id}>
         {showDate && (
           <View style={styles.dateSeparator}>
-            <Text style={styles.dateText}>
-              {ChatUtils?.formatDate ? ChatUtils.formatDate(item.timestamp) : new Date(item.timestamp).toLocaleDateString()}
-            </Text>
+            <View style={styles.dateContainer}>
+              <Text style={styles.dateText}>
+                {ChatUtils?.formatDate ? ChatUtils.formatDate(item.timestamp) : new Date(item.timestamp).toLocaleDateString()}
+              </Text>
+            </View>
           </View>
         )}
         
@@ -166,26 +168,42 @@ const LiveChatScreen = ({ navigation }) => {
         >
           {!isUser && (
             <View style={styles.agentInfo}>
-              <View style={styles.agentAvatar}>
-                <Ionicons name="sparkles" size={16} color="#FFFFFF" />
+              <View style={styles.agentAvatarContainer}>
+                <LinearGradient
+                  colors={['#9C3141', '#B8434D']}
+                  style={styles.agentAvatar}
+                >
+                  <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+                </LinearGradient>
                 <View style={[styles.onlineIndicator, { opacity: isAgentOnline ? 1 : 0 }]} />
               </View>
               <View style={styles.agentDetails}>
-                <Text style={styles.agentName}>{item.agentName || 'AI Assistant'}</Text>
-                <Text style={styles.agentRole}>AI Assistant • Mistral</Text>
+                <Text style={styles.agentName}>{item.agentName || 'Dameah AI'}</Text>
+                <Text style={styles.agentRole}>AI Assistant</Text>
               </View>
             </View>
           )}
           
           <View style={[styles.messageBubble, isUser ? styles.userBubble : styles.agentBubble]}>
-            <Text style={[styles.messageText, isUser ? styles.userMessageText : styles.agentMessageText]}>
-              {item.text}
-            </Text>
+            {isUser ? (
+              <LinearGradient
+                colors={['#9C3141', '#B8434D']}
+                style={styles.userBubbleGradient}
+              >
+                <Text style={[styles.messageText, styles.userMessageText]}>
+                  {item.text}
+                </Text>
+              </LinearGradient>
+            ) : (
+              <Text style={[styles.messageText, styles.agentMessageText]}>
+                {item.text}
+              </Text>
+            )}
           </View>
           
           <View style={[styles.messageFooter, isUser ? styles.userMessageFooter : styles.agentMessageFooter]}>
             <Text style={[styles.timestamp, isUser ? styles.userTimestamp : styles.agentTimestamp]}>
-              {ChatUtils?.formatTime ? ChatUtils.formatTime(item.timestamp) : new Date(item.timestamp).toLocaleTimeString()}
+              {ChatUtils?.formatTime ? ChatUtils.formatTime(item.timestamp) : new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
             </Text>
             {isUser && getMessageStatusIcon(item.status)}
           </View>
@@ -194,17 +212,22 @@ const LiveChatScreen = ({ navigation }) => {
     );
   };
 
-  // Typing indicator component
+  // Enhanced typing indicator component
   const TypingIndicator = () => (
     <Animated.View style={[styles.messageContainer, styles.agentMessage, { opacity: fadeAnim }]}>
       <View style={styles.agentInfo}>
-        <View style={styles.agentAvatar}>
-          <Ionicons name="sparkles" size={16} color="#FFFFFF" />
+        <View style={styles.agentAvatarContainer}>
+          <LinearGradient
+            colors={['#9C3141', '#B8434D']}
+            style={styles.agentAvatar}
+          >
+            <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+          </LinearGradient>
           <View style={styles.onlineIndicator} />
         </View>
         <View style={styles.agentDetails}>
-          <Text style={styles.agentName}>AI Assistant</Text>
-          <Text style={[styles.agentRole, { color: '#34C759' }]}>thinking...</Text>
+          <Text style={styles.agentName}>Dameah AI</Text>
+          <Text style={[styles.agentRole, { color: '#34C759' }]}>is thinking...</Text>
         </View>
       </View>
       
@@ -220,7 +243,7 @@ const LiveChatScreen = ({ navigation }) => {
                   transform: [{
                     translateY: dot.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, -3],
+                      outputRange: [0, -4],
                     })
                   }]
                 }
@@ -232,177 +255,229 @@ const LiveChatScreen = ({ navigation }) => {
     </Animated.View>
   );
 
-  // Get quick actions - use default if ChatUtils is not available
-  const quickActions = ChatUtils?.getQuickActions ? ChatUtils.getQuickActions() : defaultQuickActions;
+  // Get quick actions with fallback
+  const quickActions = ChatUtils?.getQuickActions ? ChatUtils.getQuickActions() : (defaultQuickActions || []);
 
   return (
-    <SafeAreaView style={[styles.container]} edges={['left', 'right']}>
-      <SafeAreaView style={[styles.container, { backgroundColor: '#9C3141' }]} edges={['top']}>
-        <SafeAreaView style={[styles.container]} edges={['bottom']}>
-          <StatusBar barStyle="light-content" backgroundColor="#9C3141" />
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="light-content" backgroundColor="#9C3141" />
+      
+      {/* Enhanced Header with Gradient */}
+      <LinearGradient
+        colors={['#9C3141', '#B8434D']}
+        style={styles.headerGradient}
+      >
+        <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+          <TouchableOpacity 
+            style={styles.headerButton} 
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
+          </TouchableOpacity>
           
-          {/* Header */}
-          <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-            <TouchableOpacity 
-              style={styles.headerButton} 
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.7}
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerTitle}>Dameah AI</Text>
+            <View style={styles.statusContainer}>
+              <View style={[styles.statusDot, { backgroundColor: isAgentOnline ? '#34C759' : '#FF6B6B' }]} />
+              <Text style={styles.statusText}>
+                {isAgentOnline ? 'Online now' : `Last seen ${lastSeen || 'recently'}`}
+              </Text>
+            </View>
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={handleEndChat}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="ellipsis-horizontal" size={26} color="#FFFFFF" />
+          </TouchableOpacity>
+        </Animated.View>
+      </LinearGradient>
+
+      {/* Enhanced Connection Status Banner */}
+      {connectionStatus !== 'connected' && (
+        <Animated.View 
+          style={[styles.connectionBanner, { 
+            backgroundColor: connectionStatus === 'connecting' ? 'rgba(52, 199, 89, 0.1)' : 'rgba(255, 107, 107, 0.1)',
+            borderBottomColor: connectionStatus === 'connecting' ? '#34C759' : '#FF6B6B'
+          }]}
+        >
+          <View style={styles.connectionContent}>
+            <Ionicons 
+              name={connectionStatus === 'connecting' ? "wifi-outline" : "warning-outline"} 
+              size={18} 
+              color={connectionStatus === 'connecting' ? "#34C759" : "#FF6B6B"} 
+            />
+            <Text style={[styles.connectionText, {
+              color: connectionStatus === 'connecting' ? "#34C759" : "#FF6B6B"
+            }]}>
+              {connectionStatus === 'connecting' ? 'Connecting to AI assistant...' : 'Connection error. Tap to retry.'}
+            </Text>
+          </View>
+          {connectionStatus === 'connecting' && (
+            <View style={styles.loadingIndicator}>
+              <Animated.View style={[styles.loadingDot, { opacity: typingDots[0] }]} />
+              <Animated.View style={[styles.loadingDot, { opacity: typingDots[1] }]} />
+              <Animated.View style={[styles.loadingDot, { opacity: typingDots[2] }]} />
+            </View>
+          )}
+        </Animated.View>
+      )}
+
+      <KeyboardAvoidingView 
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        {/* Messages Container */}
+        <View style={styles.messagesBackground}>
+          <ScrollView 
+            ref={scrollViewRef}
+            style={styles.messagesContainer}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Enhanced Welcome Message */}
+            <Animated.View 
+              style={[styles.welcomeContainer, { 
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }]
+              }]}
             >
-              <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            
-            <View style={styles.headerInfo}>
-              <Text style={styles.headerTitle}>Dameah</Text>
-              <View style={styles.statusContainer}>
-                <View style={[styles.statusDot, { backgroundColor: isAgentOnline ? '#34C759' : '#FF6B6B' }]} />
-                <Text style={styles.statusText}>
-                  Powered by Mistral • {isAgentOnline ? lastSeen : 'Offline'}
+              <LinearGradient
+                colors={['#FFFFFF', '#F8F9FA']}
+                style={styles.welcomeCard}
+              >
+                <View style={styles.welcomeIconContainer}>
+                  <LinearGradient
+                    colors={['#9C3141', '#B8434D']}
+                    style={styles.welcomeIcon}
+                  >
+                    <Ionicons name="sparkles" size={32} color="#FFFFFF" />
+                  </LinearGradient>
+                </View>
+                <Text style={styles.welcomeTitle}>Welcome to Dameah AI</Text>
+                <Text style={styles.welcomeText}>
+                  Your intelligent assistant powered by advanced AI. I'm here to help with any questions or tasks you have!
                 </Text>
-              </View>
+                <View style={styles.welcomeFeatures}>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="flash" size={16} color="#9C3141" />
+                    <Text style={styles.featureText}>Instant responses</Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="shield-checkmark" size={16} color="#9C3141" />
+                    <Text style={styles.featureText}>Secure & private</Text>
+                  </View>
+                </View>
+              </LinearGradient>
+            </Animated.View>
+
+            {/* Render messages with safety checks */}
+            {messages && Array.isArray(messages) && messages.map((message, index) => renderMessage(message, index))}
+            
+            {isTyping && <TypingIndicator />}
+          </ScrollView>
+        </View>
+
+        {/* Enhanced Quick Actions */}
+        {showQuickActions && quickActions && quickActions.length > 0 && (
+          <Animated.View 
+            style={[styles.quickActions, { opacity: fadeAnim }]}
+          >
+            <View style={styles.quickActionsHeader}>
+              <Text style={styles.quickActionsTitle}>Quick Start</Text>
+              <Ionicons name="chevron-forward" size={16} color="#8E8E93" />
+            </View>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.quickActionsContent}
+            >
+              {quickActions.map((action, index) => (
+                <TouchableOpacity 
+                  key={action.id || index}
+                  style={styles.quickAction}
+                  onPress={() => handleQuickAction(action.text || action.message)}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['#FFFFFF', '#F8F9FA']}
+                    style={styles.quickActionGradient}
+                  >
+                    <View style={styles.quickActionIcon}>
+                      <Ionicons name={action.icon || 'help-outline'} size={20} color="#9C3141" />
+                    </View>
+                    <Text style={styles.quickActionText}>{action.label || action.text || 'Quick Action'}</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Animated.View>
+        )}
+
+        {/* Enhanced Input Area */}
+        <Animated.View style={[styles.inputContainer, { opacity: fadeAnim }]}>
+          <View style={styles.inputBackground}>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                ref={textInputRef}
+                style={[styles.textInput, { height: Math.max(44, inputHeight || 44) }]}
+                value={message || ''}
+                onChangeText={handleMessageChange}
+                onContentSizeChange={handleContentSizeChange}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
+                placeholder="Type your message..."
+                placeholderTextColor="#A8A8A8"
+                multiline
+                maxLength={1000}
+                returnKeyType="send"
+                onSubmitEditing={handleSubmitEditing}
+                blurOnSubmit={false}
+                editable={!isLoading}
+              />
+              
+              <TouchableOpacity 
+                style={styles.attachButton}
+                onPress={() => Alert.alert('Coming Soon', 'File sharing will be available in the next update! 📎✨')}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add-circle-outline" size={26} color="#9C3141" />
+              </TouchableOpacity>
             </View>
             
             <TouchableOpacity 
-              style={styles.headerButton}
-              onPress={handleEndChat}
-              activeOpacity={0.7}
+              style={[
+                styles.sendButton, 
+                !isSendEnabled && styles.sendButtonDisabled,
+              ]}
+              onPress={sendInputMessage}
+              disabled={!isSendEnabled}
+              activeOpacity={0.8}
             >
-              <Ionicons name="ellipsis-horizontal" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          </Animated.View>
-
-          {/* Connection Status Banner */}
-          {connectionStatus !== 'connected' && (
-            <Animated.View 
-              style={[styles.connectionBanner, { 
-                backgroundColor: connectionStatus === 'connecting' ? '#FFF3CD' : '#F8D7DA' 
-              }]}
-            >
-              <Ionicons 
-                name={connectionStatus === 'connecting' ? "wifi-outline" : "warning-outline"} 
-                size={16} 
-                color={connectionStatus === 'connecting' ? "#856404" : "#721C24"} 
-              />
-              <Text style={[styles.connectionText, {
-                color: connectionStatus === 'connecting' ? "#856404" : "#721C24"
-              }]}>
-                {connectionStatus === 'connecting' ? 'Connecting to AI...' : 'Connection error. Tap to retry.'}
-              </Text>
-            </Animated.View>
-          )}
-
-          <KeyboardAvoidingView 
-            style={styles.flex}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-          >
-            {/* Messages */}
-            <ScrollView 
-              ref={scrollViewRef}
-              style={styles.messagesContainer}
-              contentContainerStyle={styles.messagesContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Welcome Message */}
-              <Animated.View 
-                style={[styles.welcomeContainer, { 
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }]
-                }]}
-              >
-                <View style={styles.welcomeIcon}>
-                  <Ionicons name="sparkles" size={28} color="#9C3141" />
+              {isSendEnabled ? (
+                <LinearGradient
+                  colors={['#9C3141', '#B8434D']}
+                  style={styles.sendButtonGradient}
+                >
+                  {isLoading ? (
+                    <Ionicons name="hourglass" size={22} color="#FFFFFF" />
+                  ) : (
+                    <Ionicons name="send" size={22} color="#FFFFFF" />
+                  )}
+                </LinearGradient>
+              ) : (
+                <View style={styles.sendButtonDisabledView}>
+                  <Ionicons name="send" size={22} color="#A8A8A8" />
                 </View>
-                <Text style={styles.welcomeTitle}>AI-Powered Support</Text>
-                <Text style={styles.welcomeText}>
-                  You're chatting with our AI assistant powered by Mistral-7B. Ask me anything!
-                </Text>
-              </Animated.View>
-
-              {messages.map((message, index) => renderMessage(message, index))}
-              
-              {isTyping && <TypingIndicator />}
-            </ScrollView>
-
-            {/* Quick Actions */}
-            {showQuickActions && (
-              <Animated.View 
-                style={[styles.quickActions, { opacity: fadeAnim }]}
-              >
-                <Text style={styles.quickActionsTitle}>Quick Start</Text>
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.quickActionsContent}
-                >
-                  {quickActions.map((action) => (
-                    <TouchableOpacity 
-                      key={action.id}
-                      style={styles.quickAction}
-                      onPress={() => handleQuickAction(action.text || action.message)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name={action.icon} size={16} color="#9C3141" />
-                      <Text style={styles.quickActionText}>{action.label || action.text}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </Animated.View>
-            )}
-
-            {/* Input Area */}
-            <Animated.View style={[styles.inputContainer, { opacity: fadeAnim }]}>
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  ref={textInputRef}
-                  style={[styles.textInput, { height: Math.max(40, inputHeight) }]}
-                  value={message}
-                  onChangeText={handleMessageChange}
-                  onContentSizeChange={handleContentSizeChange}
-                  onFocus={handleInputFocus}
-                  onBlur={handleInputBlur}
-                  placeholder="Ask me anything..."
-                  placeholderTextColor="#A8A8A8"
-                  multiline
-                  maxLength={1000}
-                  returnKeyType="send"
-                  onSubmitEditing={handleSubmitEditing}
-                  blurOnSubmit={false}
-                  editable={!isLoading}
-                />
-                
-                <TouchableOpacity 
-                  style={styles.attachButton}
-                  onPress={() => Alert.alert('Feature Coming Soon', 'File sharing will be available soon! 📎')}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="add-circle" size={24} color="#9C3141" />
-                </TouchableOpacity>
-              </View>
-              
-              <TouchableOpacity 
-                style={[
-                  styles.sendButton, 
-                  !isSendEnabled && styles.sendButtonDisabled,
-                  { transform: [{ scale: !isSendEnabled ? 0.9 : 1 }] }
-                ]}
-                onPress={sendInputMessage}
-                disabled={!isSendEnabled}
-                activeOpacity={0.8}
-              >
-                {isLoading ? (
-                  <Ionicons name="hourglass" size={20} color="#A8A8A8" />
-                ) : (
-                  <Ionicons 
-                    name="send" 
-                    size={20} 
-                    color={!isSendEnabled ? '#A8A8A8' : '#FFFFFF'} 
-                  />
-                )}
-              </TouchableOpacity>
-            </Animated.View>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </SafeAreaView>
+              )}
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -410,10 +485,13 @@ const LiveChatScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#F5F7FA',
   },
   flex: {
     flex: 1,
+  },
+  headerGradient: {
+    paddingBottom: 8,
   },
   header: {
     flexDirection: 'row',
@@ -421,112 +499,163 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#9C3141',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    shadowColor: '#9C3141',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   headerButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 10,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   headerInfo: {
     flex: 1,
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
+    letterSpacing: 0.5,
   },
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     marginRight: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
   },
   statusText: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '600',
   },
   connectionBanner: {
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'transparent',
+  },
+  connectionContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   connectionText: {
     fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 8,
+    fontWeight: '600',
+    marginLeft: 10,
+  },
+  loadingIndicator: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 8,
+    gap: 4,
+  },
+  loadingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#34C759',
+  },
+  messagesBackground: {
+    flex: 1,
+    backgroundColor: '#F5F7FA',
   },
   messagesContainer: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   messagesContent: {
     paddingVertical: 20,
   },
   welcomeContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  welcomeCard: {
+    borderRadius: 20,
+    padding: 24,
     alignItems: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 24,
-    marginBottom: 20,
+    shadowColor: '#9C3141',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  welcomeIconContainer: {
+    marginBottom: 16,
   },
   welcomeIcon: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#FFFFFF',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
     shadowColor: '#9C3141',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 8,
   },
   welcomeTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
     color: '#2C2C2E',
-    marginBottom: 8,
+    marginBottom: 12,
+    letterSpacing: 0.5,
   },
   welcomeText: {
     fontSize: 16,
-    color: '#8E8E93',
+    color: '#6D6D80',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 24,
+    marginBottom: 20,
+  },
+  welcomeFeatures: {
+    flexDirection: 'row',
+    gap: 24,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(156, 49, 65, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  featureText: {
+    fontSize: 13,
+    color: '#9C3141',
+    fontWeight: '600',
   },
   dateSeparator: {
     alignItems: 'center',
     marginVertical: 20,
   },
+  dateContainer: {
+    backgroundColor: 'rgba(142, 142, 147, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
   dateText: {
     fontSize: 12,
     color: '#8E8E93',
     fontWeight: '600',
-    backgroundColor: '#F2F2F7',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
   },
   messageContainer: {
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   userMessage: {
     alignItems: 'flex-end',
@@ -539,34 +668,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  agentAvatarContainer: {
+    position: 'relative',
+    marginRight: 12,
+  },
   agentAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#9C3141',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-    position: 'relative',
+    shadowColor: '#9C3141',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   onlineIndicator: {
     position: 'absolute',
     bottom: -2,
     right: -2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: '#34C759',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: '#FFFFFF',
+    shadowColor: '#34C759',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.5,
+    shadowRadius: 2,
   },
   agentDetails: {
     flex: 1,
   },
   agentName: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#2C2C2E',
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 2,
   },
   agentRole: {
@@ -576,28 +715,28 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     maxWidth: '85%',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
     borderRadius: 20,
     marginBottom: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   userBubble: {
-    backgroundColor: '#9C3141',
     borderBottomRightRadius: 6,
-    shadowColor: '#9C3141',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
   },
   agentBubble: {
     backgroundColor: '#FFFFFF',
     borderBottomLeftRadius: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+  },
+  userBubbleGradient: {
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 20,
+    borderBottomRightRadius: 6,
   },
   typingBubble: {
     paddingVertical: 18,
@@ -612,49 +751,74 @@ const styles = StyleSheet.create({
   },
   agentMessageText: {
     color: '#2C2C2E',
+    fontWeight: '400',
   },
   messageFooter: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 4,
   },
   userMessageFooter: {
     justifyContent: 'flex-end',
-    gap: 4,
+    gap: 6,
   },
   agentMessageFooter: {
     justifyContent: 'flex-start',
-    marginLeft: 44,
+    marginLeft: 48,
   },
   timestamp: {
     fontSize: 11,
-    color: '#C7C7CC',
     fontWeight: '500',
   },
   userTimestamp: {
+    color: 'rgba(156, 49, 65, 0.7)',
     textAlign: 'right',
   },
   agentTimestamp: {
+    color: '#C7C7CC',
     textAlign: 'left',
   },
   typingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 6,
   },
   typingDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#C7C7CC',
+    backgroundColor: '#9C3141',
   },
   quickActions: {
     backgroundColor: '#FFFFFF',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E5E5EA',
-    paddingVertical: 16,
     marginHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 12,
+    borderRadius: 20,
+    paddingVertical: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  quickActionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  quickActionsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2C2C2E',
+  },
+  quickActionsContent: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  quickAction: {
     borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -662,32 +826,23 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  quickActionsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#8E8E93',
-    marginBottom: 12,
-    marginHorizontal: 16,
-  },
-  quickActionsContent: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  quickAction: {
-    backgroundColor: '#F8F9FA',
+  quickActionGradient: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(156, 49, 65, 0.1)',
+  },
+  quickActionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(156, 49, 65, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   quickActionText: {
     fontSize: 14,
@@ -695,13 +850,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   inputContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  inputBackground: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E5E5EA',
     gap: 12,
   },
   inputWrapper: {
@@ -709,43 +871,65 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     backgroundColor: '#F8F9FA',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    paddingHorizontal: 16,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: 'rgba(156, 49, 65, 0.1)',
+    paddingHorizontal: 18,
     paddingVertical: 8,
-    minHeight: 48,
+    minHeight: 50,
     maxHeight: 120,
   },
   textInput: {
     flex: 1,
     fontSize: 16,
     color: '#2C2C2E',
-    paddingTop: 12,
-    paddingBottom: 12,
+    fontWeight: '400',
+    lineHeight: 22,
+    paddingVertical: 8,
+    paddingRight: 12,
+    maxHeight: 100,
     textAlignVertical: 'top',
   },
   attachButton: {
-    padding: 4,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(156, 49, 65, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginLeft: 8,
   },
   sendButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#9C3141',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#9C3141',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  sendButtonGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: '#F2F2F7',
     shadowOpacity: 0,
     elevation: 0,
+  },
+  sendButtonDisabledView: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 25,
+    backgroundColor: '#F8F9FA',
+    borderWidth: 2,
+    borderColor: '#E5E5EA',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

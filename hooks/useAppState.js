@@ -1,67 +1,100 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Platform, InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Authentication
 import { useAuth, loginService } from '../services/loginService';
-
-// Constants
 import { STORAGE_KEYS, APP_STATES } from '../constants/appContants';
 import { SCREEN_NAMES } from '../navigation/types';
 
-// Custom hook for app state management
 export const useAppState = () => {
   const [appState, setAppState] = useState(null);
   const [initialRoute, setInitialRoute] = useState(null);
   const [error, setError] = useState(null);
   
-  // Use refs to track async operations and prevent state updates on unmounted components
   const mountedRef = useRef(true);
   const onboardingCacheRef = useRef(null);
   const sessionValidationRef = useRef(new Map());
   
   const { user, loading: authLoading } = useAuth();
 
-  // Cleanup on unmount
+  const safeSetState = useCallback((setter, value) => {
+    if (!mountedRef.current) return;
+    
+    if (Platform.OS === 'android') {
+      requestAnimationFrame(() => {
+        if (mountedRef.current) {
+          setter(value);
+        }
+      });
+    } else {
+      setter(value);
+    }
+  }, []);
+
+  const useDebouncedCallback = (callback, delay) => {
+    const timeoutRef = useRef();
+    
+    return useMemo(() => {
+      return (...args) => {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => {
+          if (mountedRef.current) {
+            callback(...args);
+          }
+        }, delay);
+      };
+    }, [callback, delay]);
+  };
+
   useEffect(() => {
     return () => {
       mountedRef.current = false;
+      
+      if (Platform.OS === 'android') {
+        onboardingCacheRef.current = null;
+        sessionValidationRef.current.clear();
+        
+        if (global.gc) {
+          setTimeout(() => global.gc(), 100);
+        }
+      }
     };
   }, []);
 
-  // Memoized function to check onboarding status with caching
   const checkOnboardingStatus = useCallback(async (forceRefresh = false) => {
-    // Return cached result if available and not forcing refresh
     if (!forceRefresh && onboardingCacheRef.current !== null) {
       return onboardingCacheRef.current;
     }
 
     try {
+      if (Platform.OS === 'android') {
+        await new Promise(resolve => InteractionManager.runAfterInteractions(resolve));
+      }
+      
       const onboardingComplete = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE);
       const result = onboardingComplete === 'true';
       
-      // Cache the result
       onboardingCacheRef.current = result;
       return result;
     } catch (error) {
-      console.error('Error checking onboarding status:', error);
       return false;
     }
   }, []);
 
-  // Memoized function to validate user session with caching
   const validateUserSession = useCallback(async (user) => {
     if (!user) return false;
     
-    // Use user ID as cache key
     const userId = user.id || user.uid || 'default';
     const cached = sessionValidationRef.current.get(userId);
     
-    // Return cached result if still valid (cache for 5 minutes)
     if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
       return cached.isValid;
     }
     
     try {
+      if (Platform.OS === 'android') {
+        await new Promise(resolve => InteractionManager.runAfterInteractions(resolve));
+      }
+      
       const isValidSession = await loginService.validateCurrentSession();
       
       if (!isValidSession) {
@@ -70,7 +103,6 @@ export const useAppState = () => {
         return false;
       }
       
-      // Cache the validation result
       sessionValidationRef.current.set(userId, {
         isValid: true,
         timestamp: Date.now()
@@ -78,118 +110,152 @@ export const useAppState = () => {
       
       return true;
     } catch (error) {
-      console.error('Error validating session:', error);
       sessionValidationRef.current.delete(userId);
       await loginService.signOut();
       return false;
     }
   }, []);
 
-  // Main app state determination logic
   const determineAppState = useCallback(async (forceOnboardingCheck = false) => {
-    // Early return if component is unmounted
     if (!mountedRef.current) return;
     
     try {
-      setError(null);
+      safeSetState(setError, null);
 
-      // Wait for auth loading to complete
       if (authLoading) {
         return;
       }
 
-      // Check authentication status first (faster check)
       if (!user) {
         if (mountedRef.current) {
-          setAppState(APP_STATES.AUTHENTICATION);
-          setInitialRoute(SCREEN_NAMES.AUTH_STACK);
+          safeSetState(setAppState, APP_STATES.AUTHENTICATION);
+          safeSetState(setInitialRoute, SCREEN_NAMES.AUTH_STACK);
         }
         return;
       }
 
-      // Validate existing session before checking onboarding
       const isValidSession = await validateUserSession(user);
+      if (!mountedRef.current) return;
       
       if (!isValidSession) {
         if (mountedRef.current) {
-          setAppState(APP_STATES.AUTHENTICATION);
-          setInitialRoute(SCREEN_NAMES.AUTH_STACK);
+          safeSetState(setAppState, APP_STATES.AUTHENTICATION);
+          safeSetState(setInitialRoute, SCREEN_NAMES.AUTH_STACK);
         }
         return;
       }
 
-      // Check onboarding status only if user is authenticated
       const hasCompletedOnboarding = await checkOnboardingStatus(forceOnboardingCheck);
-      
       if (!mountedRef.current) return;
       
       if (!hasCompletedOnboarding) {
-        setAppState(APP_STATES.ONBOARDING);
-        setInitialRoute(SCREEN_NAMES.ONBOARDING_STACK);
+        safeSetState(setAppState, APP_STATES.ONBOARDING);
+        safeSetState(setInitialRoute, SCREEN_NAMES.ONBOARDING_STACK);
         return;
       }
 
-      // User is authenticated and has completed onboarding
-      setAppState(APP_STATES.MAIN_APP);
-      setInitialRoute(SCREEN_NAMES.MAIN_STACK);
+      safeSetState(setAppState, APP_STATES.MAIN_APP);
+      safeSetState(setInitialRoute, SCREEN_NAMES.MAIN_STACK);
 
     } catch (error) {
-      console.error('Error determining app state:', error);
-      
       if (mountedRef.current) {
-        setError(error);
-        setAppState(APP_STATES.ERROR);
-        // Fallback to auth screen
-        setInitialRoute(SCREEN_NAMES.AUTH_STACK);
+        safeSetState(setError, error);
+        safeSetState(setAppState, APP_STATES.ERROR);
+        safeSetState(setInitialRoute, SCREEN_NAMES.AUTH_STACK);
       }
     }
-  }, [user, authLoading, checkOnboardingStatus, validateUserSession]);
+  }, [user, authLoading, checkOnboardingStatus, validateUserSession, safeSetState]);
 
-  // Effect to run app state determination
-  useEffect(() => {
-    determineAppState();
-  }, [determineAppState]);
+  const debouncedDetermineAppState = useDebouncedCallback(
+    determineAppState, 
+    Platform.OS === 'android' ? 200 : 0
+  );
 
-  // Listen for AsyncStorage changes (onboarding completion)
   useEffect(() => {
-    let intervalId;
+    if (Platform.OS === 'android') {
+      debouncedDetermineAppState();
+    } else {
+      determineAppState();
+    }
+  }, [determineAppState, debouncedDetermineAppState]);
+
+  useEffect(() => {
+    let isActive = true;
     
-    // Poll for onboarding completion changes
-    // This is a simple way to detect changes without complex event systems
-    if (appState === APP_STATES.ONBOARDING) {
-      intervalId = setInterval(async () => {
-        try {
-          const onboardingComplete = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE);
-          if (onboardingComplete === 'true' && onboardingCacheRef.current !== true) {
-            // Onboarding was just completed, refresh app state
-            onboardingCacheRef.current = null; // Clear cache
-            determineAppState(true); // Force refresh
-          }
-        } catch (error) {
-          console.error('Error polling onboarding status:', error);
+    const checkOnboardingCompletion = async () => {
+      if (!isActive || !mountedRef.current || appState !== APP_STATES.ONBOARDING) {
+        return;
+      }
+      
+      try {
+        if (Platform.OS === 'android') {
+          await new Promise(resolve => InteractionManager.runAfterInteractions(resolve));
         }
-      }, 1000); // Check every second when in onboarding state
+        
+        const onboardingComplete = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE);
+        
+        if (!isActive || !mountedRef.current) return;
+        
+        if (onboardingComplete === 'true' && onboardingCacheRef.current !== true) {
+          onboardingCacheRef.current = null;
+          
+          if (Platform.OS === 'android') {
+            setTimeout(() => {
+              if (isActive && mountedRef.current) {
+                determineAppState(true);
+              }
+            }, 0);
+          } else {
+            determineAppState(true);
+          }
+        }
+      } catch (error) {
+        // Silent error handling
+      }
+      
+      if (isActive && mountedRef.current && appState === APP_STATES.ONBOARDING) {
+        const interval = Platform.OS === 'android' ? 2000 : 1000;
+        setTimeout(checkOnboardingCompletion, interval);
+      }
+    };
+    
+    if (appState === APP_STATES.ONBOARDING) {
+      const startDelay = Platform.OS === 'android' ? 100 : 0;
+      setTimeout(checkOnboardingCompletion, startDelay);
     }
     
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
+      isActive = false;
     };
   }, [appState, determineAppState]);
 
-  // Optimized refresh function that clears caches
   const refreshAppState = useCallback(() => {
-    // Clear caches on manual refresh
     onboardingCacheRef.current = null;
     sessionValidationRef.current.clear();
-    determineAppState(true);
+    
+    if (Platform.OS === 'android') {
+      setTimeout(() => {
+        if (mountedRef.current) {
+          determineAppState(true);
+        }
+      }, 100);
+    } else {
+      determineAppState(true);
+    }
   }, [determineAppState]);
 
-  // Function to handle onboarding completion from external components
   const handleOnboardingComplete = useCallback(() => {
-    onboardingCacheRef.current = null; // Clear cache
-    determineAppState(true); // Force refresh with onboarding check
+    onboardingCacheRef.current = null;
+    
+    if (Platform.OS === 'android') {
+      InteractionManager.runAfterInteractions(() => {
+        if (mountedRef.current) {
+          determineAppState(true);
+        }
+      });
+    } else {
+      determineAppState(true);
+    }
   }, [determineAppState]);
 
   return {

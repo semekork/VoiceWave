@@ -18,10 +18,33 @@ import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext';
-import { trendingSearches, popularPodcasts } from '../../constants/podcastData';
+import { 
+  podcasts, 
+  episodes, 
+  categories,
+  searchPodcasts,
+  searchEpisodes,
+  searchSuggestions,
+  getTrendingEpisodes,
+  getNewEpisodes
+} from '../../constants/podcastData';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
+// Create trending searches from the actual data
+const trendingSearches = [
+  ...searchSuggestions.slice(0, 8),
+  ...categories.slice(0, 4).map(cat => cat.title)
+];
+
+// Create popular podcasts from high-rated ones
+const popularPodcasts = podcasts
+  .filter(podcast => podcast.rating >= 4.7)
+  .map(podcast => ({
+    ...podcast,
+    subtitle: podcast.author,
+    level: 'All Levels' // Default level for compatibility
+  }));
 
 export default function SearchScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -56,64 +79,85 @@ export default function SearchScreen({ navigation }) {
     setIsLoading(true);
     setIsSearching(true);
     
-    // Enhanced mock results focusing on educational and wellness content
+    // Simulate search delay for better UX
     setTimeout(() => {
-      const mockResults = [
-        {
-          id: '1',
-          type: 'podcast',
-          title: 'The Science Hour',
-          subtitle: 'BBC World Service',
-          image: { uri: 'https://picsum.photos/200/200?random=10' },
-          category: 'Science & Nature',
-          rating: 4.8,
-          episodeCount: 300,
-          description: 'Weekly exploration of scientific discoveries and innovations',
-          level: 'Intermediate',
-          tags: ['Science', 'Research', 'Discovery']
-        },
-        {
-          id: '2',
-          type: 'episode',
-          title: 'Understanding Quantum Physics',
-          podcastTitle: 'The Science Hour',
-          image: { uri: 'https://picsum.photos/200/200?random=10' },
-          duration: 2850,
-          publishDate: '2024-05-28',
-          description: 'Breaking down quantum mechanics for curious minds',
-          level: 'Advanced',
-          subject: 'Physics'
-        },
-        {
-          id: '3',
-          type: 'podcast',
-          title: 'Headspace: Meditation & Sleep',
-          subtitle: 'Headspace',
-          image: { uri: 'https://picsum.photos/200/200?random=11' },
-          category: 'Mental Wellness',
-          rating: 4.9,
-          episodeCount: 400,
-          description: 'Guided meditations and sleep stories for better mental health',
-          level: 'All Levels',
-          tags: ['Meditation', 'Sleep', 'Wellness']
-        },
-        {
-          id: '4',
-          type: 'episode',
-          title: 'French Conversation Practice',
-          podcastTitle: 'Coffee Break French',
-          image: { uri: 'https://picsum.photos/200/200?random=12' },
-          duration: 1200,
-          publishDate: '2024-05-26',
-          description: 'Practice everyday French conversations',
-          level: 'Intermediate',
-          subject: 'French Language'
-        }
-      ];
-      
-      setSearchResults(mockResults);
+      // Search podcasts and episodes using the actual data
+      const podcastResults = searchPodcasts(searchQuery, 10).map(podcast => ({
+        ...podcast,
+        id: podcast.id,
+        type: 'podcast',
+        title: podcast.title,
+        subtitle: podcast.author,
+        image: podcast.image,
+        category: podcast.category,
+        rating: podcast.rating,
+        episodeCount: podcast.episodeCount,
+        description: podcast.description,
+        level: 'All Levels', // Default level
+        tags: [podcast.category.split(' ')[0], 'Audio', 'Education']
+      }));
+
+      const episodeResults = searchEpisodes(searchQuery, 10).map(episode => ({
+        ...episode,
+        id: episode.id,
+        type: 'episode',
+        title: episode.title,
+        podcastTitle: episode.author,
+        image: episode.image,
+        duration: parseDuration(episode.duration),
+        publishDate: formatPublishDate(episode.publishedDate),
+        description: episode.description,
+        level: 'Intermediate', // Default level
+        subject: episode.category.split(' ')[0]
+      }));
+
+      // Combine and sort results by relevance
+      const combinedResults = [...podcastResults, ...episodeResults];
+      setSearchResults(combinedResults);
       setIsLoading(false);
-    }, 1000);
+    }, 800);
+  };
+
+  // Helper function to parse duration string to seconds
+  const parseDuration = (durationStr) => {
+    if (!durationStr) return 0;
+    
+    // Handle different duration formats
+    if (durationStr.includes('h')) {
+      const parts = durationStr.split('h');
+      const hours = parseInt(parts[0]) || 0;
+      const minutes = parts[1] ? parseInt(parts[1].replace('m', '').trim()) || 0 : 0;
+      return hours * 3600 + minutes * 60;
+    } else if (durationStr.includes('m')) {
+      const minutes = parseInt(durationStr.replace('m', '').trim()) || 0;
+      return minutes * 60;
+    } else if (durationStr.includes(':')) {
+      const parts = durationStr.split(':');
+      const minutes = parseInt(parts[0]) || 0;
+      const seconds = parseInt(parts[1]) || 0;
+      return minutes * 60 + seconds;
+    }
+    
+    return 0;
+  };
+
+  // Helper function to format publish date
+  const formatPublishDate = (publishedDate) => {
+    if (!publishedDate) return new Date().toISOString().split('T')[0];
+    
+    const now = new Date();
+    if (publishedDate.includes('hour')) {
+      const hours = parseInt(publishedDate) || 1;
+      return new Date(now.getTime() - hours * 60 * 60 * 1000).toISOString().split('T')[0];
+    } else if (publishedDate.includes('day')) {
+      const days = parseInt(publishedDate) || 1;
+      return new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    } else if (publishedDate.includes('week')) {
+      const weeks = parseInt(publishedDate) || 1;
+      return new Date(now.getTime() - weeks * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    }
+    
+    return now.toISOString().split('T')[0];
   };
 
   const handleSearchSubmit = () => {
@@ -148,11 +192,19 @@ export default function SearchScreen({ navigation }) {
   };
 
   const handleEpisodePress = (episode) => {
-    navigation.navigate('PlayerScreen', {
-      podcastTitle: episode.title,
-      podcastSubtitle: episode.podcastTitle,
-      podcastImage: episode.image
-    });
+    // Find the actual episode data
+    const actualEpisode = episodes.find(ep => ep.id === episode.id);
+    
+    if (actualEpisode && actualEpisode.metadata?.audioSource) {
+      navigation.navigate('PlayerScreen', {
+        episode: actualEpisode,
+        podcastTitle: actualEpisode.title,
+        podcastSubtitle: actualEpisode.author,
+        podcastImage: actualEpisode.image
+      });
+    } else {
+      Alert.alert('Audio Not Available', 'This episode audio is not currently available.');
+    }
   };
 
   const handleSubscribe = (podcastId) => {
@@ -352,7 +404,7 @@ export default function SearchScreen({ navigation }) {
           <TextInput
             ref={searchInputRef}
             style={styles.searchInput}
-            placeholder="Discover educational podcasts..."
+            placeholder="Search podcasts and episodes..."
             placeholderTextColor="#C7C7CC"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -391,7 +443,7 @@ export default function SearchScreen({ navigation }) {
           {isLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#9C3141" />
-              <Text style={styles.loadingText}>Searching for knowledge...</Text>
+              <Text style={styles.loadingText}>Searching...</Text>
             </View>
           ) : (
             <FlatList
@@ -411,7 +463,7 @@ export default function SearchScreen({ navigation }) {
                 <View style={styles.emptyContainer}>
                   <Ionicons name="search" size={60} color="#E5E5EA" />
                   <Text style={styles.emptyText}>No results found</Text>
-                  <Text style={styles.emptySubtext}>Try exploring our trending topics</Text>
+                  <Text style={styles.emptySubtext}>Try searching for "{searchSuggestions[0]}" or "{searchSuggestions[1]}"</Text>
                 </View>
               }
             />
@@ -458,9 +510,9 @@ export default function SearchScreen({ navigation }) {
                 </View>
               )}
 
-              {/* Featured Educational Content */}
+              {/* Featured Content */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Featured Educational Content</Text>
+                <Text style={styles.sectionTitle}>Featured Podcasts</Text>
                 <FlatList
                   data={popularPodcasts}
                   renderItem={renderPopularPodcast}
@@ -817,30 +869,17 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontWeight: '600',
   },
-  subjectContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  subjectText: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginLeft: 4,
-  },
-  episodeMeta: {
-    fontSize: 12,
-    color: '#C7C7CC',
-    marginHorizontal: 4,
-  },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    marginTop: 4,
   },
   tag: {
     fontSize: 11,
     color: '#9C3141',
-    marginRight: 8,
     fontWeight: '500',
+    marginRight: 8,
+    opacity: 0.8,
   },
   subscribeButton: {
     alignSelf: 'flex-start',
@@ -880,25 +919,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  subjectContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  subjectText: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginLeft: 4,
+  },
+  episodeMeta: {
+    fontSize: 12,
+    color: '#C7C7CC',
+    marginHorizontal: 4,
+  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 80,
+    paddingTop: 100,
     paddingHorizontal: 40,
   },
   emptyText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
     color: '#8E8E93',
     marginTop: 16,
+    marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtext: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#C7C7CC',
-    marginTop: 8,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
   },
 });
