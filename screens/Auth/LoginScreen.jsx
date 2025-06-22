@@ -413,7 +413,7 @@ const LoginScreen = () => {
     ]).start();
   }, []);
 
-  // Handle navigation based on auth state
+  
   useEffect(() => {
     if (user && !authLoading) {
       const checkProfileAndNavigate = async () => {
@@ -444,7 +444,6 @@ const LoginScreen = () => {
     });
   };
 
-  // Get biometric icon based on type
   const getBiometricIcon = () => {
     if (biometricType === "face") {
       return require("../../assets/Auth/face-id.png");

@@ -100,10 +100,6 @@ export const NAVIGATION_CONFIG = {
   },
 };
 
-/**
- * Tab bar configuration
- * Defines the main navigation tabs with their icons and labels
- */
 export const TAB_CONFIG = [
   {
     name: SCREEN_NAMES.HOME,
@@ -196,30 +192,22 @@ export const SCREEN_GROUPS = {
  * Helper functions for navigation logic
  */
 export const NavigationHelpers = {
-  /**
-   * Check if a screen belongs to a specific group
-   */
+  
+  
   isScreenInGroup: (screenName, groupName) => {
     return SCREEN_GROUPS[groupName]?.includes(screenName) || false;
   },
-  
-  /**
-   * Check if current screen is a tab screen
-   */
+
+
   isTabScreen: (screenName) => {
     return SCREEN_GROUPS.MAIN_TABS.includes(screenName);
   },
-  
-  /**
-   * Check if current screen is a modal screen
-   */
+
+
   isModalScreen: (screenName) => {
     return SCREEN_GROUPS.MODAL.includes(screenName);
   },
-  
-  /**
-   * Get tab config by screen name
-   */
+
   getTabConfig: (screenName) => {
     return TAB_CONFIG.find(tab => tab.name === screenName);
   },

@@ -69,13 +69,14 @@ export const useAppState = () => {
       if (Platform.OS === 'android') {
         await new Promise(resolve => InteractionManager.runAfterInteractions(resolve));
       }
-      
+
       const onboardingComplete = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE);
       const result = onboardingComplete === 'true';
-      
+
       onboardingCacheRef.current = result;
       return result;
     } catch (error) {
+      console.error('Error checking onboarding status:', error);
       return false;
     }
   }, []);
@@ -110,6 +111,7 @@ export const useAppState = () => {
       
       return true;
     } catch (error) {
+      console.error('Error validating session:', error);
       sessionValidationRef.current.delete(userId);
       await loginService.signOut();
       return false;
@@ -126,6 +128,18 @@ export const useAppState = () => {
         return;
       }
 
+      // FIXED: Check onboarding status FIRST, regardless of authentication
+      const hasCompletedOnboarding = await checkOnboardingStatus(forceOnboardingCheck);
+      if (!mountedRef.current) return;
+      
+      // If onboarding is not complete, show onboarding regardless of auth status
+      if (!hasCompletedOnboarding) {
+        safeSetState(setAppState, APP_STATES.ONBOARDING);
+        safeSetState(setInitialRoute, SCREEN_NAMES.ONBOARDING_STACK);
+        return;
+      }
+
+      // Only check authentication AFTER onboarding is confirmed complete
       if (!user) {
         if (mountedRef.current) {
           safeSetState(setAppState, APP_STATES.AUTHENTICATION);
@@ -134,6 +148,7 @@ export const useAppState = () => {
         return;
       }
 
+      // Validate existing user session
       const isValidSession = await validateUserSession(user);
       if (!mountedRef.current) return;
       
@@ -145,19 +160,12 @@ export const useAppState = () => {
         return;
       }
 
-      const hasCompletedOnboarding = await checkOnboardingStatus(forceOnboardingCheck);
-      if (!mountedRef.current) return;
-      
-      if (!hasCompletedOnboarding) {
-        safeSetState(setAppState, APP_STATES.ONBOARDING);
-        safeSetState(setInitialRoute, SCREEN_NAMES.ONBOARDING_STACK);
-        return;
-      }
-
+      // All checks passed - user is authenticated and onboarded
       safeSetState(setAppState, APP_STATES.MAIN_APP);
       safeSetState(setInitialRoute, SCREEN_NAMES.MAIN_STACK);
 
     } catch (error) {
+      console.error('Error determining app state:', error);
       if (mountedRef.current) {
         safeSetState(setError, error);
         safeSetState(setAppState, APP_STATES.ERROR);
@@ -210,7 +218,7 @@ export const useAppState = () => {
           }
         }
       } catch (error) {
-        // Silent error handling
+        console.error('Error checking onboarding completion:', error);
       }
       
       if (isActive && mountedRef.current && appState === APP_STATES.ONBOARDING) {
