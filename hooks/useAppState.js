@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Platform, InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth, loginService } from '../services/loginService';
+import { loginService } from '../services/loginService';
+import { useAuth } from '../hooks/useAuth';
 import { STORAGE_KEYS, APP_STATES } from '../constants/appContants';
 import { SCREEN_NAMES } from '../navigation/types';
 
@@ -160,7 +161,7 @@ export const useAppState = () => {
         return;
       }
 
-      // All checks passed - user is authenticated and onboarded
+      
       safeSetState(setAppState, APP_STATES.MAIN_APP);
       safeSetState(setInitialRoute, SCREEN_NAMES.MAIN_STACK);
 

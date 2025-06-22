@@ -1,28 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  TouchableOpacity,
-  StatusBar,
-  Image,
-  TextInput,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Keyboard,
-  Alert,
-  Animated,
-} from "react-native";
+import {View,Text,StyleSheet,SafeAreaView,TouchableOpacity,StatusBar,Image,TextInput,ActivityIndicator,KeyboardAvoidingView,Platform,ScrollView,Keyboard,Alert,Animated,} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useSignup } from "../../services/signupService";
+import { useAuth } from "../../hooks/useAuth";
 
 const RegisterScreen = ({ navigation }) => {
-  // Form state
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,47 +13,30 @@ const RegisterScreen = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const { signUp, loading, error, errors, checkPasswordStrength } = useAuth();
 
-  const { signUp, loading, error, errors, checkPasswordStrength } = useSignup();
+  const [localErrors, setLocalErrors] = useState({ fullName: "",email: "",password: "",confirmPassword: "", });
 
-  // Local validation state
-  const [localErrors, setLocalErrors] = useState({
-    fullName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
-  const [passwordStrength, setPasswordStrength] = useState({
-    score: 0,
-    label: "",
-    isValid: false,
-  });
+  const [passwordStrength, setPasswordStrength] = useState({ score: 0, label: "", isValid: false, });
 
-  // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
 
-  // Input refs for keyboard navigation
   const fullNameRef = useRef(null);
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
   const confirmPasswordRef = useRef(null);
 
-  // Ref to track previous errors to prevent infinite loops
-  const prevErrorsRef = useRef();
 
-  // Handle keyboard events
   useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener(
-      "keyboardDidShow",
+    const keyboardDidShowListener = Keyboard.addListener( "keyboardDidShow",
       () => {
         setKeyboardVisible(true);
       }
     );
-    const keyboardDidHideListener = Keyboard.addListener(
-      "keyboardDidHide",
+    const keyboardDidHideListener = Keyboard.addListener( "keyboardDidHide",
       () => {
         setKeyboardVisible(false);
       }
@@ -82,37 +48,27 @@ const RegisterScreen = ({ navigation }) => {
     };
   }, []);
 
-  // Entrance animations
+
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true,}),
+      Animated.timing(slideAnim, { toValue: 0, duration: 800, useNativeDriver: true,}),
+      Animated.timing(scaleAnim, { toValue: 1, duration: 800, useNativeDriver: true,}),
     ]).start();
   }, [fadeAnim, slideAnim, scaleAnim]);
 
-  // Update password strength when password changes
   useEffect(() => {
-    if (password) {
+    if (password && checkPasswordStrength) {
       const strength = checkPasswordStrength(password);
       setPasswordStrength(strength);
-    } 
-  }, [password, checkPasswordStrength]);
-
-  
-  
+    } else {
+      setPasswordStrength({
+        score: 0,
+        label: "",
+        isValid: false,
+      });
+    }
+  }, [password]); 
 
   const getStrengthColor = useCallback(() => {
     switch (passwordStrength.score) {
@@ -131,23 +87,19 @@ const RegisterScreen = ({ navigation }) => {
     }
   }, [passwordStrength.score]);
 
-  // Toggle password visibility with haptic feedback
   const togglePasswordVisibility = useCallback(() => {
     Haptics.selectionAsync();
     setShowPassword((prev) => !prev);
   }, []);
 
-  // Toggle confirm password visibility
   const toggleConfirmPasswordVisibility = useCallback(() => {
     Haptics.selectionAsync();
     setShowConfirmPassword((prev) => !prev);
   }, []);
 
-  // Real-time validation
   const validateField = useCallback(
     (field, value) => {
       let error = "";
-
       switch (field) {
         case "fullName":
           if (!value.trim()) {
@@ -175,7 +127,7 @@ const RegisterScreen = ({ navigation }) => {
             error = "Password is required";
           } else if (value.length < 8) {
             error = "Password must be at least 8 characters";
-          } else if (!passwordStrength.isValid && value.length >= 8) {
+          } else if (passwordStrength.score < 3 && value.length >= 8) {
             error = "Password needs uppercase, lowercase, and numbers";
           }
           break;
@@ -191,13 +143,11 @@ const RegisterScreen = ({ navigation }) => {
 
       return error;
     },
-    [password, passwordStrength.isValid]
+    [password, passwordStrength.score]
   );
 
-  // FIXED: Handle field changes with real-time validation
   const handleFieldChange = useCallback(
     (field, value) => {
-      // Update the field value
       switch (field) {
         case "fullName":
           setFullName(value);
@@ -213,10 +163,8 @@ const RegisterScreen = ({ navigation }) => {
           break;
       }
 
-      // Clear error for this field immediately when user starts typing
       setLocalErrors((prev) => {
-        // Only update if there's actually an error to clear
-        if (prev[field] || (errors && errors[field])) {
+        if (prev[field]) {
           return {
             ...prev,
             [field]: "",
@@ -225,10 +173,9 @@ const RegisterScreen = ({ navigation }) => {
         return prev;
       });
     },
-    [errors]
+    []
   );
 
-  // Validate form on blur
   const handleFieldBlur = useCallback(
     (field, value) => {
       const error = validateField(field, value);
@@ -240,7 +187,7 @@ const RegisterScreen = ({ navigation }) => {
     [validateField]
   );
 
-  // Validate entire form
+
   const validateForm = useCallback(() => {
     const newErrors = {
       fullName: validateField("fullName", fullName),
@@ -254,13 +201,23 @@ const RegisterScreen = ({ navigation }) => {
     return !Object.values(newErrors).some((error) => error !== "");
   }, [validateField, fullName, email, password, confirmPassword]);
 
-  // Handle sign up
+
+  const navigateToSuccess = useCallback(
+    (message = null) => {
+      navigation.replace("SuccessScreen", {
+        message: message,
+        fromRegistration: true,
+      });
+    },
+    [navigation]
+  );
+
+  // Handle sign up - OPTIMIZED
   const handleSignUp = useCallback(async () => {
     Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     if (!validateForm()) {
-      // Shake animation for error
       Animated.sequence([
         Animated.timing(buttonScale, {
           toValue: 0.95,
@@ -299,23 +256,14 @@ const RegisterScreen = ({ navigation }) => {
       });
 
       if (result.success) {
-        if (result.data.needsEmailVerification) {
-          Alert.alert(
-            "Check Your Email",
-            "We've sent you a confirmation link. Please check your email and click the link to verify your account.",
-            [
-              {
-                text: "OK",
-                onPress: () => navigation.navigate("SuccessScreen"),
-              },
-            ]
-          );
-        } else {
-          // User is automatically signed in
-          navigation.navigate("SuccessScreen");
-        }
+        // OPTIMIZED: Always navigate to SuccessScreen, pass verification status as params
+        const message = result.data.needsEmailVerification
+          ? "We've sent you a confirmation link. Please check your email to verify your account."
+          : "Account created successfully! Welcome aboard.";
+
+        navigateToSuccess(message);
       } else {
-        // Handle specific error cases
+        // Handle specific error cases with optimized alerts
         if (result.error.includes("already exists")) {
           Alert.alert(
             "Account Exists",
@@ -324,7 +272,7 @@ const RegisterScreen = ({ navigation }) => {
               { text: "Cancel", style: "cancel" },
               {
                 text: "Sign In",
-                onPress: () => navigation.navigate("LoginScreen"),
+                onPress: () => navigation.replace("LoginScreen"), // Use replace for cleaner navigation
               },
             ]
           );
@@ -344,6 +292,7 @@ const RegisterScreen = ({ navigation }) => {
     email,
     password,
     confirmPassword,
+    navigateToSuccess,
     navigation,
   ]);
 
@@ -359,16 +308,21 @@ const RegisterScreen = ({ navigation }) => {
     navigation.navigate("PrivacyScreen");
   }, [navigation]);
 
-  
-  const currentErrors = useMemo(() => ({
-  fullName: localErrors.fullName || errors?.fullName || "",
-  email: localErrors.email || errors?.email || "",
-  password: localErrors.password || errors?.password || "",
-  confirmPassword: localErrors.confirmPassword || errors?.confirmPassword || "",
-}), [localErrors, errors]);
+  // Optimized navigation to login
+  const navigateToLogin = useCallback(() => {
+    Haptics.selectionAsync();
+    navigation.replace("LoginScreen"); // Use replace to prevent stack buildup
+  }, [navigation]);
 
-
-
+  // FIXED: Memoize current errors to prevent unnecessary re-renders
+  const currentErrors = useMemo(() => {
+    return {
+      fullName: localErrors.fullName || (errors?.fullName) || "",
+      email: localErrors.email || (errors?.email) || "",
+      password: localErrors.password || (errors?.password) || "",
+      confirmPassword: localErrors.confirmPassword || (errors?.confirmPassword) || "",
+    };
+  }, [localErrors, errors]);
 
   return (
     <>
@@ -685,12 +639,7 @@ const RegisterScreen = ({ navigation }) => {
                     <Text style={styles.signInText}>
                       Already have an account?{" "}
                     </Text>
-                    <TouchableOpacity
-                      onPress={() => {
-                        Haptics.selectionAsync();
-                        navigation.navigate("LoginScreen");
-                      }}
-                    >
+                    <TouchableOpacity onPress={navigateToLogin}>
                       <Text style={styles.signInLinkText}>Sign In</Text>
                     </TouchableOpacity>
                   </View>

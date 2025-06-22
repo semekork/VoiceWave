@@ -22,7 +22,7 @@ import { useNavigation } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
-import { useAuth } from "../../services/loginService";
+import { useAuth } from "../../hooks/useAuth";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
