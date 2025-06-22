@@ -1,0 +1,6 @@
+module Pods_Voicewave {
+  umbrella header "Pods-Voicewave-umbrella.h"
+
+  export *
+  module * { export * }
+}

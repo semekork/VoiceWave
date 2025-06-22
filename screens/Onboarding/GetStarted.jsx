@@ -1,14 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  Image,
-  StyleSheet,
-  SafeAreaView,
-  TouchableOpacity,
-  ImageBackground,
-  Animated,
-  Dimensions
+import {View,Text,Image,StyleSheet,SafeAreaView,TouchableOpacity,ImageBackground,Animated,Dimensions
 } from 'react-native';
 import { Entypo } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -38,13 +29,11 @@ const GetStarted = ({ onGetStarted, onOnboardingComplete }) => {
       duration: 1200,
       useNativeDriver: true,
     }).start();
-    
     Animated.timing(slideAnim, {
       toValue: 0,
       duration: 800,
       useNativeDriver: true,
     }).start();
-    
     // Button pulse animation
     Animated.loop(
       Animated.sequence([
@@ -126,7 +115,7 @@ const GetStarted = ({ onGetStarted, onOnboardingComplete }) => {
       ])
     ).start();
     
-    // Circle 2 floating animations (slightly different timing for varied effect)
+    // Circle 2 floating animations
     Animated.loop(
       Animated.parallel([
         // Y-axis movement
@@ -185,29 +174,26 @@ const GetStarted = ({ onGetStarted, onOnboardingComplete }) => {
         ]),
       ])
     ).start();
-    
+
   }, []);
 
   const handleGetStarted = async () => {
     try {
       // Mark onboarding as complete
       await AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING_COMPLETE || 'onboarding_complete', 'true');
-      
+
       // Verify it was saved successfully
       const saved = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE || 'onboarding_complete');
       console.log('Onboarding completion saved:', saved);
-      // Navigate to the main app screen
-      navigation.navigate('AuthStack');
-      // Call the onboarding completion callback first
+
       if (onOnboardingComplete) {
         onOnboardingComplete();
       }
-      
-      // Call the legacy onGetStarted prop if provided
+      navigation.navigate('AuthStack');
       if (onGetStarted) {
         onGetStarted();
       }
-      
+
     } catch (error) {
       console.error('Error completing onboarding:', error);
       // Even if storage fails, call the callbacks

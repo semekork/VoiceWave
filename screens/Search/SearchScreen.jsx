@@ -12,526 +12,385 @@ import {
   Image,
   ActivityIndicator,
   Alert,
-  Animated
+  Animated,
+  Keyboard,
+  Platform
 } from 'react-native';
-import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext';
 import { 
   podcasts, 
   episodes, 
-  categories,
   searchPodcasts,
   searchEpisodes,
-  searchSuggestions,
-  getTrendingEpisodes,
-  getNewEpisodes
+  searchSuggestions
 } from '../../constants/podcastData';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Create trending searches from the actual data
-const trendingSearches = [
-  ...searchSuggestions.slice(0, 8),
-  ...categories.slice(0, 4).map(cat => cat.title)
+const quickSearches = [
+  'Technology', 'Business', 'Health', 'Education', 
+  'Science', 'Comedy', 'News', 'History'
 ];
-
-// Create popular podcasts from high-rated ones
-const popularPodcasts = podcasts
-  .filter(podcast => podcast.rating >= 4.7)
-  .map(podcast => ({
-    ...podcast,
-    subtitle: podcast.author,
-    level: 'All Levels' // Default level for compatibility
-  }));
 
 export default function SearchScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
+  const [isActive, setIsActive] = useState(false);
+  const [results, setResults] = useState([]);
   const [recentSearches, setRecentSearches] = useState([]);
-  const [searchHistory, setSearchHistory] = useState([]);
-  const [activeTab, setActiveTab] = useState('all');
   const [isLoading, setIsLoading] = useState(false);
   
   const searchInputRef = useRef(null);
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const { addToQueue, currentPodcast } = useGlobalAudioPlayer();
-
-  // Animated header opacity
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 50],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const { addToQueue } = useGlobalAudioPlayer();
 
   useEffect(() => {
-    if (searchQuery.length > 2) {
-      handleSearch();
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
+      setIsActive(true);
+      animateIn();
+    });
+    
+    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+      if (!searchQuery) {
+        setIsActive(false);
+        animateOut();
+      }
+    });
+
+    return () => {
+      keyboardDidShowListener?.remove();
+      keyboardDidHideListener?.remove();
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (searchQuery.length > 0) {
+      performSearch();
     } else {
-      setSearchResults([]);
-      setIsSearching(false);
+      setResults([]);
     }
   }, [searchQuery]);
 
-  const handleSearch = async () => {
+  const animateIn = () => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      })
+    ]).start();
+  };
+
+  const animateOut = () => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 50,
+        duration: 200,
+        useNativeDriver: true,
+      })
+    ]).start();
+  };
+
+  const performSearch = async () => {
+    if (searchQuery.trim().length < 2) return;
+    
     setIsLoading(true);
-    setIsSearching(true);
     
-    // Simulate search delay for better UX
+    // Simulate network delay
     setTimeout(() => {
-      // Search podcasts and episodes using the actual data
-      const podcastResults = searchPodcasts(searchQuery, 10).map(podcast => ({
+      const podcastResults = searchPodcasts(searchQuery, 5).map(podcast => ({
         ...podcast,
-        id: podcast.id,
         type: 'podcast',
-        title: podcast.title,
-        subtitle: podcast.author,
-        image: podcast.image,
-        category: podcast.category,
-        rating: podcast.rating,
-        episodeCount: podcast.episodeCount,
-        description: podcast.description,
-        level: 'All Levels', // Default level
-        tags: [podcast.category.split(' ')[0], 'Audio', 'Education']
+        searchScore: calculateRelevance(podcast.title, searchQuery)
       }));
 
-      const episodeResults = searchEpisodes(searchQuery, 10).map(episode => ({
+      const episodeResults = searchEpisodes(searchQuery, 5).map(episode => ({
         ...episode,
-        id: episode.id,
         type: 'episode',
-        title: episode.title,
-        podcastTitle: episode.author,
-        image: episode.image,
-        duration: parseDuration(episode.duration),
-        publishDate: formatPublishDate(episode.publishedDate),
-        description: episode.description,
-        level: 'Intermediate', // Default level
-        subject: episode.category.split(' ')[0]
+        searchScore: calculateRelevance(episode.title, searchQuery)
       }));
 
-      // Combine and sort results by relevance
-      const combinedResults = [...podcastResults, ...episodeResults];
-      setSearchResults(combinedResults);
+      const combinedResults = [...podcastResults, ...episodeResults]
+        .sort((a, b) => b.searchScore - a.searchScore)
+        .slice(0, 10);
+
+      setResults(combinedResults);
       setIsLoading(false);
-    }, 800);
+    }, 500);
   };
 
-  // Helper function to parse duration string to seconds
-  const parseDuration = (durationStr) => {
-    if (!durationStr) return 0;
+  const calculateRelevance = (title, query) => {
+    const titleLower = title.toLowerCase();
+    const queryLower = query.toLowerCase();
     
-    // Handle different duration formats
-    if (durationStr.includes('h')) {
-      const parts = durationStr.split('h');
-      const hours = parseInt(parts[0]) || 0;
-      const minutes = parts[1] ? parseInt(parts[1].replace('m', '').trim()) || 0 : 0;
-      return hours * 3600 + minutes * 60;
-    } else if (durationStr.includes('m')) {
-      const minutes = parseInt(durationStr.replace('m', '').trim()) || 0;
-      return minutes * 60;
-    } else if (durationStr.includes(':')) {
-      const parts = durationStr.split(':');
-      const minutes = parseInt(parts[0]) || 0;
-      const seconds = parseInt(parts[1]) || 0;
-      return minutes * 60 + seconds;
+    if (titleLower.includes(queryLower)) {
+      return titleLower.indexOf(queryLower) === 0 ? 100 : 80;
     }
     
-    return 0;
-  };
-
-  // Helper function to format publish date
-  const formatPublishDate = (publishedDate) => {
-    if (!publishedDate) return new Date().toISOString().split('T')[0];
+    const words = queryLower.split(' ');
+    let score = 0;
+    words.forEach(word => {
+      if (titleLower.includes(word)) score += 20;
+    });
     
-    const now = new Date();
-    if (publishedDate.includes('hour')) {
-      const hours = parseInt(publishedDate) || 1;
-      return new Date(now.getTime() - hours * 60 * 60 * 1000).toISOString().split('T')[0];
-    } else if (publishedDate.includes('day')) {
-      const days = parseInt(publishedDate) || 1;
-      return new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    } else if (publishedDate.includes('week')) {
-      const weeks = parseInt(publishedDate) || 1;
-      return new Date(now.getTime() - weeks * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    }
-    
-    return now.toISOString().split('T')[0];
+    return score;
   };
 
-  const handleSearchSubmit = () => {
-    if (searchQuery.trim()) {
-      const updatedRecent = [searchQuery, ...recentSearches.filter(item => item !== searchQuery)].slice(0, 8);
-      setRecentSearches(updatedRecent);
-      
-      const historyItem = {
-        id: Date.now().toString(),
-        query: searchQuery,
-        timestamp: new Date(),
-        resultsCount: searchResults.length
-      };
-      setSearchHistory([historyItem, ...searchHistory].slice(0, 15));
-    }
-  };
-
-  const handleRecentSearchPress = (query) => {
+  const handleSearch = (query) => {
     setSearchQuery(query);
     searchInputRef.current?.focus();
-  };
-
-  const handleClearSearch = () => {
-    setSearchQuery('');
-    setSearchResults([]);
-    setIsSearching(false);
-    searchInputRef.current?.focus();
-  };
-
-  const handlePodcastPress = (podcast) => {
-    navigation.navigate('PodcastDetailsScreen', { podcast });
-  };
-
-  const handleEpisodePress = (episode) => {
-    // Find the actual episode data
-    const actualEpisode = episodes.find(ep => ep.id === episode.id);
     
-    if (actualEpisode && actualEpisode.metadata?.audioSource) {
-      navigation.navigate('PlayerScreen', {
-        episode: actualEpisode,
-        podcastTitle: actualEpisode.title,
-        podcastSubtitle: actualEpisode.author,
-        podcastImage: actualEpisode.image
-      });
-    } else {
-      Alert.alert('Audio Not Available', 'This episode audio is not currently available.');
+    if (query.trim() && !recentSearches.includes(query)) {
+      setRecentSearches(prev => [query, ...prev.slice(0, 4)]);
     }
   };
 
-  const handleSubscribe = (podcastId) => {
-    Alert.alert('Subscribe', 'Subscribed to podcast successfully!', [
-      { text: 'OK', style: 'default' }
-    ]);
-  };
-
-  const formatDuration = (seconds) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-  };
-
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric' 
-    });
-  };
-
-  const renderSearchResult = ({ item }) => {
+  const handleResultPress = (item) => {
     if (item.type === 'podcast') {
-      return (
-        <TouchableOpacity 
-          style={styles.resultItem}
-          onPress={() => handlePodcastPress(item)}
-          activeOpacity={0.7}
-        >
+      navigation.navigate('PodcastDetailsScreen', { podcast: item });
+    } else {
+      const actualEpisode = episodes.find(ep => ep.id === item.id);
+      if (actualEpisode?.metadata?.audioSource) {
+        navigation.navigate('PlayerScreen', {
+          episode: actualEpisode,
+          podcastTitle: actualEpisode.title,
+          podcastSubtitle: actualEpisode.author,
+          podcastImage: actualEpisode.image
+        });
+      } else {
+        Alert.alert('Audio Not Available', 'This episode is not available for playback.');
+      }
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setResults([]);
+    setIsActive(false);
+    Keyboard.dismiss();
+  };
+
+  const formatDuration = (duration) => {
+    if (typeof duration === 'string') {
+      return duration;
+    }
+    const minutes = Math.floor(duration / 60);
+    return `${minutes}m`;
+  };
+
+  const renderSearchResult = ({ item, index }) => (
+    <Animated.View
+      style={[
+        styles.resultItem,
+        {
+          opacity: fadeAnim,
+          transform: [{
+            translateY: slideAnim.interpolate({
+              inputRange: [0, 50],
+              outputRange: [0, index * 10 + 50],
+            })
+          }]
+        }
+      ]}
+    >
+      <TouchableOpacity
+        onPress={() => handleResultPress(item)}
+        style={styles.resultContent}
+        activeOpacity={0.7}
+      >
+        <View style={styles.resultImageContainer}>
           <Image source={item.image} style={styles.resultImage} />
-          <View style={styles.resultContent}>
-            <Text style={styles.resultTitle} numberOfLines={2}>{item.title}</Text>
-            <Text style={styles.resultSubtitle}>{item.subtitle}</Text>
-            <View style={styles.resultMeta}>
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryText}>{item.category}</Text>
-              </View>
-              <View style={styles.levelContainer}>
-                <Ionicons name="school-outline" size={12} color="#8E8E93" />
-                <Text style={styles.levelText}>{item.level}</Text>
-              </View>
-              <View style={styles.ratingContainer}>
+          <View style={styles.resultImageOverlay}>
+            <Ionicons 
+              name={item.type === 'podcast' ? 'library-outline' : 'play'} 
+              size={16} 
+              color="#FFFFFF" 
+            />
+          </View>
+        </View>
+        
+        <View style={styles.resultInfo}>
+          <Text style={styles.resultTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+          <Text style={styles.resultSubtitle} numberOfLines={1}>
+            {item.author || item.category}
+          </Text>
+          <View style={styles.resultMeta}>
+            <View style={[styles.typeTag, { backgroundColor: item.type === 'podcast' ? '#9C3141' : '#FF6B35' }]}>
+              <Text style={styles.typeTagText}>
+                {item.type === 'podcast' ? 'PODCAST' : 'EPISODE'}
+              </Text>
+            </View>
+            {item.type === 'episode' && (
+              <Text style={styles.duration}>
+                {formatDuration(item.duration)}
+              </Text>
+            )}
+            {item.rating && (
+              <View style={styles.rating}>
                 <Ionicons name="star" size={12} color="#FFD700" />
                 <Text style={styles.ratingText}>{item.rating}</Text>
               </View>
-            </View>
-            <View style={styles.tagsContainer}>
-              {item.tags?.slice(0, 3).map((tag, index) => (
-                <Text key={index} style={styles.tag}>#{tag}</Text>
-              ))}
-            </View>
+            )}
           </View>
-          <TouchableOpacity 
-            style={styles.subscribeButton}
-            onPress={() => handleSubscribe(item.id)}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#9C3141', '#B63E54']}
-              style={styles.subscribeGradient}
-            >
-              <Ionicons name="add" size={16} color="#FFF" />
-              <Text style={styles.subscribeText}>Follow</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+        </View>
+        
+        <TouchableOpacity style={styles.actionButton} activeOpacity={0.8}>
+          <Ionicons 
+            name={item.type === 'podcast' ? 'add-circle-outline' : 'play-circle-outline'} 
+            size={28} 
+            color="#9C3141" 
+          />
         </TouchableOpacity>
-      );
-    } else {
-      return (
-        <TouchableOpacity 
-          style={styles.resultItem}
-          onPress={() => handleEpisodePress(item)}
-          activeOpacity={0.7}
-        >
-          <Image source={item.image} style={styles.resultImage} />
-          <View style={styles.resultContent}>
-            <Text style={styles.resultTitle} numberOfLines={2}>{item.title}</Text>
-            <Text style={styles.resultSubtitle}>{item.podcastTitle}</Text>
-            <View style={styles.resultMeta}>
-              <View style={styles.subjectContainer}>
-                <Ionicons name="book-outline" size={12} color="#8E8E93" />
-                <Text style={styles.subjectText}>{item.subject}</Text>
-              </View>
-              <Text style={styles.episodeMeta}>•</Text>
-              <View style={styles.levelContainer}>
-                <Ionicons name="school-outline" size={12} color="#8E8E93" />
-                <Text style={styles.levelText}>{item.level}</Text>
-              </View>
-              <Text style={styles.episodeMeta}>•</Text>
-              <Text style={styles.episodeMeta}>{formatDate(item.publishDate)}</Text>
-              <Text style={styles.episodeMeta}>•</Text>
-              <Text style={styles.episodeMeta}>{formatDuration(item.duration)}</Text>
-            </View>
-          </View>
-          <TouchableOpacity 
-            style={styles.playButton}
-            onPress={() => handleEpisodePress(item)}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#9C3141', '#B63E54']}
-              style={styles.playGradient}
-            >
-              <Ionicons name="play" size={18} color="#FFF" />
-            </LinearGradient>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      );
-    }
-  };
+      </TouchableOpacity>
+    </Animated.View>
+  );
 
-  const renderTrendingChip = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.trendingChip}
-      onPress={() => handleRecentSearchPress(item)}
-      activeOpacity={0.7}
+  const renderQuickSearch = ({ item }) => (
+    <TouchableOpacity
+      style={styles.quickSearchChip}
+      onPress={() => handleSearch(item)}
+      activeOpacity={0.8}
     >
-      <Text style={styles.trendingText}>{item}</Text>
+      <Text style={styles.quickSearchText}>{item}</Text>
+      <Ionicons name="search" size={14} color="#666" style={styles.quickSearchIcon} />
     </TouchableOpacity>
   );
 
   const renderRecentSearch = ({ item }) => (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.recentItem}
-      onPress={() => handleRecentSearchPress(item)}
+      onPress={() => handleSearch(item)}
       activeOpacity={0.7}
     >
-      <View style={styles.recentIcon}>
-        <Ionicons name="time-outline" size={18} color="#8E8E93" />
+      <View style={styles.recentIconContainer}>
+        <Ionicons name="time-outline" size={18} color="#9C3141" />
       </View>
       <Text style={styles.recentText}>{item}</Text>
-      <TouchableOpacity 
-        style={styles.removeButton}
-        onPress={() => setRecentSearches(recentSearches.filter(search => search !== item))}
+      <TouchableOpacity
+        onPress={() => setRecentSearches(prev => prev.filter(search => search !== item))}
+        style={styles.removeRecent}
         activeOpacity={0.7}
       >
-        <Ionicons name="close" size={16} color="#C7C7CC" />
+        <Ionicons name="close" size={16} color="#CCC" />
       </TouchableOpacity>
-    </TouchableOpacity>
-  );
-
-  const renderPopularPodcast = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.popularItem}
-      onPress={() => handlePodcastPress(item)}
-      activeOpacity={0.8}
-    >
-      <Image source={item.image} style={styles.popularImage} />
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.8)']}
-        style={styles.popularOverlay}
-      >
-        <View style={styles.popularContent}>
-          <Text style={styles.popularTitle} numberOfLines={2}>{item.title}</Text>
-          <Text style={styles.popularSubtitle}>{item.subtitle}</Text>
-          <View style={styles.popularMeta}>
-            <View style={styles.popularLevel}>
-              <Ionicons name="school-outline" size={12} color="rgba(255,255,255,0.8)" />
-              <Text style={styles.popularLevelText}>{item.level}</Text>
-            </View>
-            <View style={styles.popularRating}>
-              <Ionicons name="star" size={12} color="#FFD700" />
-              <Text style={styles.popularRatingText}>{item.rating}</Text>
-            </View>
-          </View>
-        </View>
-      </LinearGradient>
     </TouchableOpacity>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F2F2F7" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
-      {/* Animated Header */}
-      <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
-        <BlurView intensity={100} style={styles.headerBlur}>
-          <View style={styles.headerContent}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="chevron-back" size={24} color="#000" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Discover</Text>
-            <View style={styles.headerSpacer} />
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
+        
+        <View style={styles.searchContainer}>
+          <View style={[styles.searchInputContainer, isActive && styles.searchInputActive]}>
+            <Ionicons name="search" size={20} color="#9C3141" />
+            <TextInput
+              ref={searchInputRef}
+              style={styles.searchInput}
+              placeholder="Search podcasts and episodes"
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={clearSearch} activeOpacity={0.7}>
+                <Ionicons name="close-circle" size={20} color="#CCC" />
+              </TouchableOpacity>
+            )}
           </View>
-        </BlurView>
-      </Animated.View>
-
-      {/* Search Input */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchInputContainer}>
-          <Ionicons name="search" size={20} color="#8E8E93" style={styles.searchIcon} />
-          <TextInput
-            ref={searchInputRef}
-            style={styles.searchInput}
-            placeholder="Search podcasts and episodes..."
-            placeholderTextColor="#C7C7CC"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSubmitEditing={handleSearchSubmit}
-            returnKeyType="search"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={handleClearSearch} activeOpacity={0.7}>
-              <Ionicons name="close-circle" size={20} color="#C7C7CC" />
-            </TouchableOpacity>
-          )}
         </View>
       </View>
 
       {/* Content */}
-      {isSearching ? (
-        <View style={styles.searchContent}>
-          {/* Filter Tabs */}
-          <View style={styles.filterTabs}>
-            {['all', 'courses', 'episodes'].map((tab) => (
-              <TouchableOpacity 
-                key={tab}
-                style={[styles.filterTab, activeTab === tab && styles.activeFilterTab]}
-                onPress={() => setActiveTab(tab)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.filterTabText, activeTab === tab && styles.activeFilterTabText]}>
-                  {tab === 'all' ? 'All' : tab === 'courses' ? 'Podcasts' : 'Episodes'}
-                </Text>
-              </TouchableOpacity>
-            ))}
+      <View style={styles.content}>
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#9C3141" />
+            <Text style={styles.loadingText}>Searching...</Text>
           </View>
-
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#9C3141" />
-              <Text style={styles.loadingText}>Searching...</Text>
+        ) : searchQuery && results.length > 0 ? (
+          <FlatList
+            data={results}
+            renderItem={renderSearchResult}
+            keyExtractor={(item) => `${item.type}-${item.id}`}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.resultsList}
+            keyboardShouldPersistTaps="handled"
+          />
+        ) : searchQuery && results.length === 0 && !isLoading ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="search" size={64} color="#E0E0E0" />
             </View>
-          ) : (
-            <FlatList
-              data={searchResults.filter(item => 
-                activeTab === 'all' || item.type === (activeTab === 'courses' ? 'podcast' : 'episode')
-              )}
-              renderItem={renderSearchResult}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.resultsList}
-              onScroll={Animated.event(
-                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                { useNativeDriver: false }
-              )}
-              scrollEventThrottle={16}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Ionicons name="search" size={60} color="#E5E5EA" />
-                  <Text style={styles.emptyText}>No results found</Text>
-                  <Text style={styles.emptySubtext}>Try searching for "{searchSuggestions[0]}" or "{searchSuggestions[1]}"</Text>
-                </View>
-              }
-            />
-          )}
-        </View>
-      ) : (
-        <FlatList
-          data={[]}
-          ListHeaderComponent={
-            <View style={styles.discoverContent}>
-              {/* Trending Topics */}
+            <Text style={styles.emptyTitle}>No results found</Text>
+            <Text style={styles.emptySubtitle}>
+              Try searching for "{searchSuggestions[0]}" or "{searchSuggestions[1]}"
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.discoverContainer}>
+            {/* Quick Searches */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Quick Searches</Text>
+              <FlatList
+                data={quickSearches}
+                renderItem={renderQuickSearch}
+                keyExtractor={(item) => item}
+                numColumns={2}
+                scrollEnabled={false}
+                contentContainerStyle={styles.quickSearchGrid}
+                columnWrapperStyle={styles.quickSearchRow}
+              />
+            </View>
+
+            {/* Recent Searches */}
+            {recentSearches.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Trending Topics</Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Recent Searches</Text>
+                  <TouchableOpacity
+                    onPress={() => setRecentSearches([])}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.clearText}>Clear All</Text>
+                  </TouchableOpacity>
+                </View>
                 <FlatList
-                  data={trendingSearches}
-                  renderItem={renderTrendingChip}
+                  data={recentSearches}
+                  renderItem={renderRecentSearch}
                   keyExtractor={(item) => item}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.trendingList}
+                  scrollEnabled={false}
                 />
               </View>
-
-              {/* Recent Searches */}
-              {recentSearches.length > 0 && (
-                <View style={styles.section}>
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Recent Searches</Text>
-                    <TouchableOpacity 
-                      onPress={() => setRecentSearches([])}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.clearText}>Clear</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.recentContainer}>
-                    <FlatList
-                      data={recentSearches}
-                      renderItem={renderRecentSearch}
-                      keyExtractor={(item) => item}
-                      scrollEnabled={false}
-                    />
-                  </View>
-                </View>
-              )}
-
-              {/* Featured Content */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Featured Podcasts</Text>
-                <FlatList
-                  data={popularPodcasts}
-                  renderItem={renderPopularPodcast}
-                  keyExtractor={(item) => item.id}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.popularList}
-                />
-              </View>
-            </View>
-          }
-          showsVerticalScrollIndicator={false}
-          onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-            { useNativeDriver: false }
-          )}
-          scrollEventThrottle={16}
-        />
-      )}
+            )}
+          </View>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -539,420 +398,286 @@ export default function SearchScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#FAFAFA',
   },
   header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
-    height: 88,
-  },
-  headerBlur: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    paddingBottom: 12,
-  },
-  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginRight: 16,
+    padding: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 40,
+    backgroundColor: '#F8F8F8',
   },
   searchContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
-    backgroundColor: '#F2F2F7',
+    flex: 1,
   },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8F8F8',
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  searchIcon: {
-    marginRight: 12,
+  searchInputActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#9C3141',
+    shadowColor: '#9C3141',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     color: '#000',
+    marginLeft: 12,
+    marginRight: 8,
+    fontWeight: '400',
   },
-  searchContent: {
+  content: {
     flex: 1,
-  },
-  discoverContent: {
-    flex: 1,
-    paddingTop: 10,
-  },
-  filterTabs: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  filterTab: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    marginRight: 12,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  activeFilterTab: {
-    backgroundColor: '#9C3141',
-    shadowColor: '#9C3141',
-    shadowOpacity: 0.3,
-  },
-  filterTabText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    fontWeight: '500',
-  },
-  activeFilterTabText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    backgroundColor: '#FAFAFA',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 100,
+    backgroundColor: '#FAFAFA',
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#8E8E93',
+    color: '#666',
     fontWeight: '500',
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#000',
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  clearText: {
-    fontSize: 14,
-    color: '#9C3141',
-    fontWeight: '600',
-  },
-  trendingList: {
-    paddingHorizontal: 20,
-  },
-  trendingChip: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  trendingText: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-  },
-  recentContainer: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  recentItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E5EA',
-  },
-  recentIcon: {
-    marginRight: 12,
-  },
-  recentText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#000',
-    fontWeight: '500',
-  },
-  removeButton: {
-    padding: 4,
-  },
-  popularList: {
-    paddingHorizontal: 20,
-  },
-  popularItem: {
-    width: 160,
-    height: 200,
-    marginRight: 16,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  popularImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  popularOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '60%',
-    justifyContent: 'flex-end',
-    padding: 12,
-  },
-  popularContent: {
-    marginBottom: 8,
-  },
-  popularTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  popularSubtitle: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginBottom: 8,
-  },
-  popularMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  popularLevel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  popularLevelText: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.8)',
-    marginLeft: 4,
-  },
-  popularRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  popularRatingText: {
-    fontSize: 11,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    marginLeft: 4,
   },
   resultsList: {
-    paddingHorizontal: 20,
-    paddingBottom: 100,
+    paddingVertical: 16,
   },
   resultItem: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  resultImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
-    marginRight: 16,
+    marginHorizontal: 16,
+    marginVertical: 8,
   },
   resultContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  resultImageContainer: {
+    position: 'relative',
+  },
+  resultImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    backgroundColor: '#F0F0F0',
+  },
+  resultImageOverlay: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#9C3141',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  resultInfo: {
     flex: 1,
-    justifyContent: 'space-between',
+    marginLeft: 20,
+    marginRight: 16,
   },
   resultTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: '#000',
-    marginBottom: 4,
+    marginBottom: 6,
+    lineHeight: 22,
   },
   resultSubtitle: {
     fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 8,
+    color: '#666',
+    marginBottom: 12,
+    fontWeight: '500',
   },
   resultMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    marginBottom: 8,
   },
-  categoryBadge: {
-    backgroundColor: '#9C3141',
-    paddingHorizontal: 8,
+  typeTag: {
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6,
-    marginRight: 8,
+    borderRadius: 8,
+    marginRight: 12,
   },
-  categoryText: {
-    fontSize: 11,
+  typeTagText: {
+    fontSize: 10,
+    fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: 0.8,
+  },
+  duration: {
+    fontSize: 12,
+    color: '#666',
+    marginRight: 12,
     fontWeight: '600',
   },
-  levelContainer: {
+  rating: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 8,
-  },
-  levelText: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginLeft: 4,
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 8,
   },
   ratingText: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: '#666',
     marginLeft: 4,
     fontWeight: '600',
   },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 4,
-  },
-  tag: {
-    fontSize: 11,
-    color: '#9C3141',
-    fontWeight: '500',
-    marginRight: 8,
-    opacity: 0.8,
-  },
-  subscribeButton: {
-    alignSelf: 'flex-start',
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#9C3141',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  subscribeGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  subscribeText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  playButton: {
-    alignSelf: 'center',
-    borderRadius: 25,
-    overflow: 'hidden',
-    shadowColor: '#9C3141',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  playGradient: {
-    width: 50,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  subjectContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  subjectText: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginLeft: 4,
-  },
-  episodeMeta: {
-    fontSize: 12,
-    color: '#C7C7CC',
-    marginHorizontal: 4,
+  actionButton: {
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#F8F8F8',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 100,
-    paddingHorizontal: 40,
+    paddingHorizontal: 32,
   },
-  emptyText: {
-    fontSize: 18,
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 12,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 24,
+    fontWeight: '400',
+  },
+  discoverContainer: {
+    flex: 1,
+    padding: 20,
+  },
+  section: {
+    marginBottom: 40,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#000',
+    marginBottom: 20,
+  },
+  clearText: {
+    fontSize: 16,
+    color: '#9C3141',
     fontWeight: '600',
-    color: '#8E8E93',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
   },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#C7C7CC',
-    textAlign: 'center',
-    lineHeight: 20,
+  quickSearchGrid: {
+    gap: 12,
+  },
+  quickSearchRow: {
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  quickSearchChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    marginVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  quickSearchText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  quickSearchIcon: {
+    marginLeft: 8,
+  },
+  recentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginVertical: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  recentIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  recentText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  removeRecent: {
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: '#F8F8F8',
   },
 });
