@@ -1,4 +1,3 @@
-// hooks/useLoginActivity.js - Optimized version
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { getDeviceInfo, getClientIP, getLocationFromIP, formatTimeAgo, isValidIP } from '../utils/deviceUtils';
@@ -8,7 +7,6 @@ export const useLoginActivity = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Refs to prevent duplicate operations
   const isRecordingRef = useRef(false);
   const recordedSessionsRef = useRef(new Set());
   const abortControllerRef = useRef(null);
@@ -16,16 +14,12 @@ export const useLoginActivity = () => {
   // Memoized fetch function
   const fetchLoginActivities = useCallback(async () => {
     try {
-      // Cancel any ongoing fetch
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
-      
       abortControllerRef.current = new AbortController();
-      
       setLoading(true);
       setError(null);
-      
       const { data, error } = await supabase.rpc('get_user_login_activities', {
         limit_count: 50
       });
@@ -58,95 +52,95 @@ export const useLoginActivity = () => {
     }
   }, []);
 
-  // Optimized record function with deduplication
-  const recordLoginActivity = useCallback(async (sessionId = null, force = false) => {
-    // Prevent concurrent recording unless forced
-    if (isRecordingRef.current && !force) {
-      console.log('Login activity recording already in progress');
-      return null;
-    }
+const recordLoginActivity = useCallback(async (sessionId = null, force = false) => {
+  // Prevent concurrent recording unless forced
+  if (isRecordingRef.current && !force) {
+    console.log('Login activity recording already in progress');
+    return null;
+  }
 
-    // Check if session was already recorded (prevents duplicates)
-    const finalSessionId = sessionId || generateSessionId();
-    if (recordedSessionsRef.current.has(finalSessionId) && !force) {
-      console.log('Session already recorded:', finalSessionId);
-      return null;
-    }
+  // Check if session was already recorded (prevents duplicates)
+  const finalSessionId = sessionId || generateSessionId();
+  if (recordedSessionsRef.current.has(finalSessionId) && !force) {
+    console.log('Session already recorded:', finalSessionId);
+    return null;
+  }
 
-    try {
-      isRecordingRef.current = true;
+  try {
+    isRecordingRef.current = true;
+    
+    // Mark session as being recorded
+    recordedSessionsRef.current.add(finalSessionId);
+    
+    // Get current user first
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) throw new Error('No authenticated user');
+
+    // Check if activity already exists in database
+    if (!force) {
+      const { data: existingActivity } = await supabase
+        .from('login_activities')
+        .select('id')
+        .eq('session_id', finalSessionId)
+        .eq('user_id', user.id)
+        .single();
       
-      // Mark session as being recorded
-      recordedSessionsRef.current.add(finalSessionId);
-      
-      // Get current user first
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      if (!user) throw new Error('No authenticated user');
-
-      // Check if activity already exists in database
-      if (!force) {
-        const { data: existingActivity } = await supabase
-          .from('login_activities')
-          .select('id')
-          .eq('session_id', finalSessionId)
-          .eq('user_id', user.id)
-          .single();
-        
-        if (existingActivity) {
-          console.log('Login activity already exists for session:', finalSessionId);
-          return { success: true, existing: true, sessionId: finalSessionId };
-        }
+      if (existingActivity) {
+        console.log('Login activity already exists for session:', finalSessionId);
+        return { success: true, existing: true, sessionId: finalSessionId };
       }
-      
-      // Get device information in parallel
-      const [deviceInfo, ipAddress] = await Promise.all([
-        getDeviceInfo(),
-        getClientIP()
-      ]);
-      
-      // Get location information
-      let locationData = null;
-      if (ipAddress && isValidIP(ipAddress)) {
-        try {
-          locationData = await getLocationFromIP(ipAddress);
-        } catch (e) {
-          console.warn('Could not get location data:', e);
-        }
-      }
-      
-      // Record the login activity
-      const { data, error } = await supabase.rpc('record_login_activity', {
-        p_user_id: user.id,
-        p_ip_address: ipAddress || 'Unknown',
-        p_user_agent: navigator.userAgent,
-        p_location: locationData,
-        p_device_info: deviceInfo,
-        p_session_id: finalSessionId
-      });
-
-      if (error) throw error;
-      
-      // Refresh the activities list only if successful
-      await fetchLoginActivities();
-      
-      return {
-        success: true,
-        sessionId: finalSessionId,
-        ipAddress,
-        deviceInfo,
-        locationData,
-        data
-      };
-    } catch (err) {
-      console.error('Error recording login activity:', err);
-      // Remove from recorded sessions on error
-      recordedSessionsRef.current.delete(finalSessionId);
-      throw err;
-    } finally {
-      isRecordingRef.current = false;
     }
-  }, [fetchLoginActivities]);
+    
+    // Get device information in parallel
+    const [deviceInfo, ipAddress] = await Promise.all([
+      getDeviceInfo(),
+      getClientIP()
+    ]);
+    
+    // Get location information
+    let locationData = null;
+    if (ipAddress && isValidIP(ipAddress)) {
+      try {
+        locationData = await getLocationFromIP(ipAddress);
+      } catch (e) {
+        console.warn('Could not get location data:', e);
+      }
+    }
+    
+    // Updated RPC call to match the actual function signature
+    // The function expects: p_ip_address, p_location, p_session_id, p_user_agent, p_user_id
+    const { data, error } = await supabase.rpc('record_login_activity', {
+      p_user_id: user.id,
+      p_ip_address: ipAddress || 'Unknown',
+      p_user_agent: navigator.userAgent,
+      p_location: locationData,
+      p_session_id: finalSessionId
+      // Note: p_device_info is removed since it's not expected by the function
+    });
+
+    if (error) throw error;
+    
+    // Refresh the activities list only if successful
+    await fetchLoginActivities();
+    
+    return {
+      success: true,
+      sessionId: finalSessionId,
+      ipAddress,
+      deviceInfo,
+      locationData,
+      data
+    };
+  } catch (err) {
+    console.error('Error recording login activity:', err);
+    // Remove from recorded sessions on error
+    recordedSessionsRef.current.delete(finalSessionId);
+    throw err;
+  } finally {
+    isRecordingRef.current = false;
+  }
+}, [fetchLoginActivities]);
 
   const endSession = useCallback(async (sessionId) => {
     try {
