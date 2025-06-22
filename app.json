@@ -14,7 +14,9 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.semekor.k.Voicewave"
+      "bundleIdentifier": "com.semekor.k.Voicewave",
+      "displayName": "VoiceWave",
+        "deploymentTarget": "12.0"
     },
     "android": {
       "adaptiveIcon": {

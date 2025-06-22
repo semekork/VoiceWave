@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { HuggingFaceService } from '../utils/huggingfaceService';
+import { KommunicateService } from '../utils/kommunicateService';
 
 export const useChatSession = () => {
   const [chatSession, setChatSession] = useState(null);
@@ -7,37 +7,81 @@ export const useChatSession = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  const huggingfaceService = useRef(new HuggingFaceService()).current;
+  const kommunicateService = useRef(new KommunicateService()).current;
 
   const initializeSession = useCallback(async () => {
     try {
       setError(null);
       
-      // Validate Hugging Face API key
-      const validation = await huggingfaceService.validateApiKey();
+      // Initialize Kommunicate with configuration
+      await kommunicateService.initialize({
+        apiKey: process.env.KOMMUNICATE_API_KEY,
+        applicationId: process.env.KOMMUNICATE_APP_ID
+      });
+
+      // Validate API credentials
+      const validation = await kommunicateService.validateApiKey();
       if (!validation.valid) {
-        throw new Error(`Invalid or missing Hugging Face API key: ${validation.error}. Please check your .env configuration and get your free key at https://huggingface.co/settings/tokens`);
+        throw new Error(`Invalid or missing Kommunicate credentials: ${validation.error}. Please check your API key and Application ID configuration.`);
       }
+
+      // Create a new conversation
+      const conversationData = await kommunicateService.createConversation({
+        title: 'Chat with Dameah AI',
+        userType: 'mobile_user'
+      });
 
       const sessionId = `chat_${Date.now()}`;
       setChatSession({
         id: sessionId,
+        conversationId: conversationData.conversationId,
         startTime: new Date(),
         isActive: true,
-        provider: 'huggingface'
+        provider: 'kommunicate'
       });
       
       // Add welcome message
       const welcomeMessage = {
         id: `msg_${Date.now()}`,
-        text: "Hi! I'm Dameah, your AI assistant powered by Hugging Face. How can I help you today?",
+        text: "Hi! I'm Dameah, your AI assistant. How can I help you today?",
         sender: 'agent',
         timestamp: new Date().toISOString(),
         status: 'delivered',
-        agentName: 'Dameah'
+        agentName: 'Dameah AI'
       };
       
       setMessages([welcomeMessage]);
+
+      // Initialize WebSocket for real-time messaging (optional)
+      try {
+        await kommunicateService.initializeWebSocket();
+        
+        // Set up event handlers for real-time updates
+        kommunicateService.setEventHandlers({
+          onMessageReceived: (data) => {
+            const newMessage = {
+              id: `msg_${Date.now()}`,
+              text: data.message || data.text,
+              sender: data.source === 1 ? 'user' : 'agent',
+              timestamp: new Date().toISOString(),
+              status: 'delivered',
+              agentName: data.source === 1 ? null : 'Dameah AI'
+            };
+            setMessages(prev => [...prev, newMessage]);
+          },
+          onTypingIndicator: (data) => {
+            // Handle typing indicators if needed
+            console.log('Typing indicator:', data);
+          },
+          onUserStatusChange: (data) => {
+            // Handle user status changes if needed
+            console.log('User status change:', data);
+          }
+        });
+      } catch (wsError) {
+        console.warn('WebSocket initialization failed, using REST API only:', wsError);
+      }
+
     } catch (err) {
       setError(err.message);
       console.error('Session initialization error:', err);
@@ -45,7 +89,7 @@ export const useChatSession = () => {
       // Add error message to show user what went wrong
       const errorMessage = {
         id: `msg_${Date.now()}`,
-        text: `Sorry, I couldn't initialize the chat session: ${err.message}. Please check your Hugging Face API configuration.`,
+        text: `Sorry, I couldn't initialize the chat session: ${err.message}. Please check your Kommunicate configuration.`,
         sender: 'agent',
         timestamp: new Date().toISOString(),
         status: 'delivered',
@@ -55,7 +99,7 @@ export const useChatSession = () => {
       
       setMessages([errorMessage]);
     }
-  }, [huggingfaceService]);
+  }, [kommunicateService]);
 
   const sendMessage = useCallback(async (messageText) => {
     if (!messageText.trim()) return;
@@ -84,8 +128,8 @@ export const useChatSession = () => {
         )
       );
 
-      // Get Hugging Face response
-      const aiResponse = await huggingfaceService.sendMessage(messageText, messages);
+      // Send message via Kommunicate
+      const aiResponse = await kommunicateService.sendMessage(messageText, messages);
 
       // Add AI message
       const aiMessage = {
@@ -94,7 +138,7 @@ export const useChatSession = () => {
         sender: 'agent',
         timestamp: new Date().toISOString(),
         status: 'delivered',
-        agentName: 'Dameah'
+        agentName: 'Dameah AI'
       };
 
       setMessages(prev => [
@@ -126,7 +170,7 @@ export const useChatSession = () => {
         sender: 'agent',
         timestamp: new Date().toISOString(),
         status: 'delivered',
-        agentName: 'Dameah',
+        agentName: 'Dameah AI',
         isError: true
       };
 
@@ -134,9 +178,9 @@ export const useChatSession = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [messages, huggingfaceService]);
+  }, [messages, kommunicateService]);
 
-  // Streaming version
+  // Streaming version using Kommunicate's streaming simulation
   const sendMessageStream = useCallback(async (messageText) => {
     if (!messageText.trim()) return;
 
@@ -161,7 +205,7 @@ export const useChatSession = () => {
       sender: 'agent',
       timestamp: new Date().toISOString(),
       status: 'typing',
-      agentName: 'Dameah'
+      agentName: 'Dameah AI'
     };
 
     setMessages(prev => [
@@ -174,7 +218,7 @@ export const useChatSession = () => {
     ]);
 
     try {
-      await huggingfaceService.sendMessageStream(
+      await kommunicateService.sendMessageStream(
         messageText, 
         messages,
         // onChunk callback - updates message as it streams
@@ -220,51 +264,42 @@ export const useChatSession = () => {
           sender: 'agent',
           timestamp: new Date().toISOString(),
           status: 'delivered',
-          agentName: 'Dameah',
+          agentName: 'Dameah AI',
           isError: true
         }
       ]);
     } finally {
       setIsLoading(false);
     }
-  }, [messages, huggingfaceService]);
+  }, [messages, kommunicateService]);
 
-  // Switch between different Hugging Face models
-  const switchModel = useCallback(async (modelType) => {
+  // Get conversation history from Kommunicate
+  const getConversationHistory = useCallback(async () => {
     try {
-      await huggingfaceService.switchModel(modelType);
-      
-      const switchMessage = {
-        id: `msg_${Date.now()}`,
-        text: `Switched to ${modelType} model. The conversation style may change slightly.`,
-        sender: 'agent',
-        timestamp: new Date().toISOString(),
-        status: 'delivered',
-        agentName: 'System',
-        isSystemMessage: true
-      };
-      
-      setMessages(prev => [...prev, switchMessage]);
+      const history = await kommunicateService.getConversationHistory();
+      setMessages(history);
+      return history;
     } catch (err) {
-      setError(`Failed to switch model: ${err.message}`);
+      setError(`Failed to load conversation history: ${err.message}`);
+      return [];
     }
-  }, [huggingfaceService]);
+  }, [kommunicateService]);
 
-  // Get available models and current model info
+  // Get available bot configurations
   const getModelInfo = useCallback(() => {
-    return huggingfaceService.getAvailableModels();
-  }, [huggingfaceService]);
+    return kommunicateService.getAvailableModels();
+  }, [kommunicateService]);
 
-  // Test the Hugging Face connection
+  // Test the Kommunicate connection
   const testConnection = useCallback(async () => {
     try {
       setIsLoading(true);
-      const validation = await huggingfaceService.validateApiKey();
+      const validation = await kommunicateService.validateApiKey();
       
       const testMessage = {
         id: `msg_${Date.now()}`,
         text: validation.valid 
-          ? '✅ Hugging Face connection is working properly!' 
+          ? '✅ Kommunicate connection is working properly!' 
           : `❌ Connection failed: ${validation.error}`,
         sender: 'agent',
         timestamp: new Date().toISOString(),
@@ -281,10 +316,33 @@ export const useChatSession = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [huggingfaceService]);
+  }, [kommunicateService]);
+
+  // Load previous conversation
+  const loadConversation = useCallback(async (conversationId) => {
+    try {
+      setIsLoading(true);
+      kommunicateService.conversationId = conversationId;
+      const history = await kommunicateService.getConversationHistory(conversationId);
+      setMessages(history);
+      
+      setChatSession(prev => ({
+        ...prev,
+        conversationId: conversationId,
+        isActive: true
+      }));
+    } catch (err) {
+      setError(`Failed to load conversation: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [kommunicateService]);
 
   const endSession = useCallback(async () => {
     try {
+      // Close the conversation in Kommunicate
+      await kommunicateService.closeConversation();
+      
       setChatSession(prev => prev ? { ...prev, isActive: false, endTime: new Date() } : null);
       
       // Add goodbye message
@@ -294,19 +352,16 @@ export const useChatSession = () => {
         sender: 'agent',
         timestamp: new Date().toISOString(),
         status: 'delivered',
-        agentName: 'Dameah',
+        agentName: 'Dameah AI',
         isSystemMessage: true
       };
       
       setMessages(prev => [...prev, goodbyeMessage]);
-      
-      // Save conversation history to AsyncStorage if needed
-      // await AsyncStorage.setItem(`chat_${chatSession?.id}`, JSON.stringify(messages));
     } catch (err) {
       setError(err.message);
       console.error('End session error:', err);
     }
-  }, [chatSession?.id, messages]);
+  }, [kommunicateService]);
 
   const clearError = useCallback(() => {
     setError(null);
@@ -316,6 +371,14 @@ export const useChatSession = () => {
     setMessages([]);
   }, []);
 
+  // Disconnect from Kommunicate
+  const disconnect = useCallback(() => {
+    kommunicateService.disconnect();
+    setChatSession(null);
+    setMessages([]);
+    setError(null);
+  }, [kommunicateService]);
+
   return {
     chatSession,
     messages,
@@ -324,11 +387,13 @@ export const useChatSession = () => {
     initializeSession,
     sendMessage,
     sendMessageStream,
-    switchModel,
+    getConversationHistory,
+    loadConversation,
     getModelInfo,
     testConnection,
     endSession,
     clearError,
-    clearMessages
+    clearMessages,
+    disconnect
   };
 };
