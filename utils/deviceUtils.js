@@ -1,4 +1,3 @@
-// Enhanced device detection utilities
 export const getDeviceIcon = (device) => {
   const deviceLower = device?.toLowerCase() || '';
   

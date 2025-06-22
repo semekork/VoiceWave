@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getDeviceInfo, getClientIP, getLocationFromIP, isValidIP } from '../utils/deviceUtils';
 
 class SignupService {
   constructor() {
@@ -9,6 +10,10 @@ class SignupService {
 
   generateRegistrationId() {
     return 'reg_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+  }
+
+  generateSessionId() {
+    return 'session_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
   }
 
   validateEmail(email) {
@@ -239,6 +244,66 @@ class SignupService {
     }
   }
 
+  async recordSignupActivity(userId, sessionId, registrationData) {
+  try {
+    console.log('Recording signup activity as login activity...');
+    
+    // Get device information in parallel
+    const [deviceInfo, ipAddress] = await Promise.all([
+      getDeviceInfo(),
+      getClientIP()
+    ]);
+    
+    // Get location information
+    let locationData = null;
+    if (ipAddress && isValidIP(ipAddress)) {
+      try {
+        locationData = await getLocationFromIP(ipAddress);
+      } catch (e) {
+        console.warn('Could not get location data during signup:', e);
+      }
+    }
+    
+      
+      // Enhanced device info for signup
+      const enhancedDeviceInfo = {
+      ...deviceInfo,
+      activity_type: 'signup',
+      registration_id: registrationData?.registrationId,
+      signup_method: 'email',
+      platform: registrationData?.platform || 'mobile',
+      app_version: registrationData?.app_version || '1.0.0'
+      };
+      
+      // Record the signup activity using the same RPC as login
+      const { data, error } = await supabase.rpc('record_login_activity', {
+      p_user_id: userId,
+      p_ip_address: ipAddress || 'Unknown',
+      p_user_agent: navigator.userAgent,
+      p_location: locationData,
+      p_session_id: sessionId
+    });
+
+      if (error) {
+        console.error('Error recording signup activity:', error);
+        return { success: false, error: error.message };
+      }
+      
+      console.log('Signup activity recorded successfully');
+      return {
+        success: true,
+        data,
+        sessionId,
+        ipAddress,
+        deviceInfo: enhancedDeviceInfo,
+        locationData
+      };
+    } catch (error) {
+      console.error('Unexpected error recording signup activity:', error);
+      return { success: false, error: 'Failed to record signup activity' };
+    }
+  }
+
   // FIXED: Complete profile creation with all fields from your schema
   async createUserProfile(userId, profileData) {
     if (!userId) {
@@ -320,7 +385,7 @@ class SignupService {
     }
   }
 
-  // Enhanced registration with proper profile creation order
+  // Enhanced registration with proper profile creation order and login activity tracking
   async registerUser(formData) {
     try {
       const validation = this.validateRegistrationForm(formData);
@@ -425,6 +490,7 @@ class SignupService {
 
       // Check if email confirmation is required
       const needsEmailVerification = !data.session;
+      const sessionId = data.session?.access_token || this.generateSessionId();
 
       const result = {
         success: true,
@@ -435,14 +501,13 @@ class SignupService {
           session: data.session,
           registrationId,
           needsEmailVerification,
-          emailSent: needsEmailVerification
+          emailSent: needsEmailVerification,
+          sessionId
         }
       };
 
-      // CRITICAL: Always create profile, whether user is immediately signed in or not
       try {
         console.log('Creating user profile...');
-        
         const profileData = {
           full_name: fullName,
           display_name: fullName.split(' ')[0],
@@ -468,7 +533,28 @@ class SignupService {
           };
         }
 
-        // If user is immediately signed in, store auth data
+        // NEW: Record signup activity as login activity
+        try {
+          const signupActivityResult = await this.recordSignupActivity(
+            data.user.id, 
+            sessionId,
+            {
+              registrationId,
+              platform: 'mobile',
+              app_version: '1.0.0'
+            }
+          );
+
+          if (signupActivityResult.success) {
+            console.log('Signup activity recorded successfully');
+            result.data.signupActivity = signupActivityResult;
+          } else {
+            console.warn('Failed to record signup activity:', signupActivityResult.error);
+          }
+        } catch (activityError) {
+          console.warn('Error recording signup activity:', activityError);
+        }
+
         if (data.session && data.user) {
           await this.storeAuthData(data.user, data.session);
           await this.clearTemporaryRegistrationData(registrationId);

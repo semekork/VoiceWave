@@ -12,7 +12,6 @@ class LoginService {
     return 'session_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
   }
 
-  // Get device and location information with better error handling
   async getDeviceInfo() {
     try {
       let deviceInfo = {

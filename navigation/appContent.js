@@ -21,17 +21,28 @@ import NotificationService from '../services/NotificationService';
 
 const RootStack = createNativeStackNavigator();
 
-// Loading Component
-const LoadingScreen = () => (
+// Enhanced Loading Component with restoration message
+const LoadingScreen = ({ isRestoringSession }) => (
   <View style={styles.loadingContainer}>
     <ActivityIndicator size="large" color="#9C3141" />
+    <Text style={styles.loadingText}>
+      {isRestoringSession ? 'Restoring your session...' : 'Loading...'}
+    </Text>
   </View>
 );
 
 // Main App Component with Enhanced State Management
 function AppContent() {
   const navigationRef = useRef(null);
-  const { appState, initialRoute, error, isReady, refreshAppState, handleOnboardingComplete } = useAppState();
+  const { 
+    appState, 
+    initialRoute, 
+    error, 
+    isReady, 
+    isRestoringSession, 
+    refreshAppState, 
+    handleOnboardingComplete 
+  } = useAppState();
   const prevAppState = useRef(appState);
   
   // Network connectivity state
@@ -65,6 +76,8 @@ function AppContent() {
       if (!wasConnected && isNowConnected) {
         setShowOfflineScreen(false);
         setOfflineMode(false);
+        // Refresh app state when connection is restored (might help with session restoration)
+        refreshAppState?.();
       }
     });
 
@@ -72,7 +85,7 @@ function AppContent() {
       NotificationService.cleanup();
       unsubscribe();
     };
-  }, [isConnected, isInternetReachable, offlineMode]);
+  }, [isConnected, isInternetReachable, offlineMode, refreshAppState]);
 
   // Handle navigation ready state
   const onNavigationReady = useCallback(() => {
@@ -103,7 +116,7 @@ function AppContent() {
       if (netInfo.isConnected && netInfo.isInternetReachable) {
         setShowOfflineScreen(false);
         setOfflineMode(false);
-        // Optionally refresh app state when connection is restored
+        // Refresh app state when connection is restored
         refreshAppState?.();
       }
     } catch (error) {
@@ -117,9 +130,9 @@ function AppContent() {
     setShowOfflineScreen(false);
   }, []);
 
-  // Show loading screen while determining app state
-  if (!isReady) {
-    return <LoadingScreen />;
+  // Show loading screen while determining app state or restoring session
+  if (!isReady || isRestoringSession) {
+    return <LoadingScreen isRestoringSession={isRestoringSession} />;
   }
 
   // Show error screen if there's an error
@@ -128,6 +141,7 @@ function AppContent() {
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Something went wrong</Text>
         <Text style={styles.errorSubText}>Please restart the app</Text>
+        <Text style={styles.errorDetails}>{error.message || 'Unknown error'}</Text>
       </View>
     );
   }
@@ -215,6 +229,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1E1E1E',
   },
+  loadingText: {
+    color: '#CCCCCC',
+    fontSize: 16,
+    marginTop: 16,
+    textAlign: 'center',
+  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -233,6 +253,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     marginTop: 8,
+  },
+  errorDetails: {
+    color: '#888888',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });
 

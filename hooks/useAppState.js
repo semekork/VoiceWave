@@ -5,15 +5,18 @@ import { loginService } from '../services/loginService';
 import { useAuth } from '../hooks/useAuth';
 import { STORAGE_KEYS, APP_STATES } from '../constants/appContants';
 import { SCREEN_NAMES } from '../navigation/types';
+import { sessionService } from '../services/sessionService';
 
 export const useAppState = () => {
   const [appState, setAppState] = useState(null);
   const [initialRoute, setInitialRoute] = useState(null);
   const [error, setError] = useState(null);
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
   
   const mountedRef = useRef(true);
   const onboardingCacheRef = useRef(null);
   const sessionValidationRef = useRef(new Map());
+  const sessionRestoredRef = useRef(false);
   
   const { user, loading: authLoading } = useAuth();
 
@@ -82,6 +85,51 @@ export const useAppState = () => {
     }
   }, []);
 
+  // NEW: Attempt to restore saved session
+  const attemptSessionRestore = useCallback(async () => {
+    if (sessionRestoredRef.current) return false;
+    
+    try {
+      console.log('Attempting to restore saved session...');
+      
+      // Initialize session service if not already done
+      await sessionService.initialize();
+      
+      // Get the most recently used session
+      const savedSessions = await sessionService.getSavedSessions();
+      
+      if (savedSessions.length === 0) {
+        console.log('No saved sessions found');
+        return false;
+      }
+      
+      // Sort by last used (most recent first)
+      const mostRecentSession = savedSessions.sort((a, b) => 
+        (b.lastUsed || b.savedAt) - (a.lastUsed || a.savedAt)
+      )[0];
+      
+      console.log('Found recent session:', mostRecentSession.userEmail);
+      
+      // Attempt to restore the most recent session
+      const restoreResult = await sessionService.switchToSession(mostRecentSession.sessionId);
+      
+      if (restoreResult.success) {
+        console.log('Session restored successfully');
+        sessionRestoredRef.current = true;
+        return true;
+      } else {
+        console.log('Failed to restore session:', restoreResult.error);
+        // Remove invalid session
+        await sessionService.removeSession(mostRecentSession.sessionId);
+        return false;
+      }
+      
+    } catch (error) {
+      console.error('Error attempting session restore:', error);
+      return false;
+    }
+  }, []);
+
   const validateUserSession = useCallback(async (user) => {
     if (!user) return false;
     
@@ -129,7 +177,7 @@ export const useAppState = () => {
         return;
       }
 
-      // FIXED: Check onboarding status FIRST, regardless of authentication
+      // Check onboarding status FIRST
       const hasCompletedOnboarding = await checkOnboardingStatus(forceOnboardingCheck);
       if (!mountedRef.current) return;
       
@@ -137,10 +185,33 @@ export const useAppState = () => {
       if (!hasCompletedOnboarding) {
         safeSetState(setAppState, APP_STATES.ONBOARDING);
         safeSetState(setInitialRoute, SCREEN_NAMES.ONBOARDING_STACK);
+        safeSetState(setIsRestoringSession, false);
         return;
       }
 
-      // Only check authentication AFTER onboarding is confirmed complete
+      // NEW: If no user and we haven't tried restoring session yet, try to restore
+      if (!user && isRestoringSession && !sessionRestoredRef.current) {
+        console.log('No user found, attempting session restore...');
+        const sessionRestored = await attemptSessionRestore();
+        
+        if (!mountedRef.current) return;
+        
+        safeSetState(setIsRestoringSession, false);
+        
+        if (sessionRestored) {
+          // Wait a bit for the auth hook to pick up the restored session
+          setTimeout(() => {
+            if (mountedRef.current) {
+              determineAppState(false);
+            }
+          }, 1000);
+          return;
+        }
+      } else {
+        safeSetState(setIsRestoringSession, false);
+      }
+
+      // If still no user after restore attempt, show auth
       if (!user) {
         if (mountedRef.current) {
           safeSetState(setAppState, APP_STATES.AUTHENTICATION);
@@ -161,7 +232,7 @@ export const useAppState = () => {
         return;
       }
 
-      
+      // User is valid, proceed to main app
       safeSetState(setAppState, APP_STATES.MAIN_APP);
       safeSetState(setInitialRoute, SCREEN_NAMES.MAIN_STACK);
 
@@ -171,9 +242,10 @@ export const useAppState = () => {
         safeSetState(setError, error);
         safeSetState(setAppState, APP_STATES.ERROR);
         safeSetState(setInitialRoute, SCREEN_NAMES.AUTH_STACK);
+        safeSetState(setIsRestoringSession, false);
       }
     }
-  }, [user, authLoading, checkOnboardingStatus, validateUserSession, safeSetState]);
+  }, [user, authLoading, checkOnboardingStatus, validateUserSession, safeSetState, attemptSessionRestore, isRestoringSession]);
 
   const debouncedDetermineAppState = useDebouncedCallback(
     determineAppState, 
@@ -241,6 +313,8 @@ export const useAppState = () => {
   const refreshAppState = useCallback(() => {
     onboardingCacheRef.current = null;
     sessionValidationRef.current.clear();
+    sessionRestoredRef.current = false; // Reset session restore flag
+    safeSetState(setIsRestoringSession, true);
     
     if (Platform.OS === 'android') {
       setTimeout(() => {
@@ -251,7 +325,7 @@ export const useAppState = () => {
     } else {
       determineAppState(true);
     }
-  }, [determineAppState]);
+  }, [determineAppState, safeSetState]);
 
   const handleOnboardingComplete = useCallback(() => {
     onboardingCacheRef.current = null;
@@ -271,7 +345,8 @@ export const useAppState = () => {
     appState,
     initialRoute,
     error,
-    isReady: appState !== null && initialRoute !== null,
+    isReady: appState !== null && initialRoute !== null && !isRestoringSession,
+    isRestoringSession, 
     refreshAppState,
     handleOnboardingComplete
   };
