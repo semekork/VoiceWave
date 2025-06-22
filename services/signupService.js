@@ -129,7 +129,18 @@ class SignupService {
     }
 
     try {
-      // Use a more reliable method to check if email exists
+      // First check profiles table for existing email
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email.trim().toLowerCase())
+        .single();
+
+      if (profileData) {
+        return { exists: true, error: null };
+      }
+
+      // If not found in profiles, use RPC function if available
       const { data, error } = await supabase.rpc('check_email_exists', {
         email_to_check: email.trim().toLowerCase()
       });
@@ -228,7 +239,88 @@ class SignupService {
     }
   }
 
-  // Enhanced registration with better error handling
+  // FIXED: Complete profile creation with all fields from your schema
+  async createUserProfile(userId, profileData) {
+    if (!userId) {
+      console.error('Cannot create profile: userId is required');
+      return { success: false, error: 'User ID is required' };
+    }
+
+    try {
+      // Check if profile already exists
+      const { data: existingProfile, error: checkError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .single();
+
+      if (existingProfile) {
+        console.log('Profile already exists for user:', userId);
+        return { success: true, data: existingProfile };
+      }
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        // Error other than "not found"
+        console.error('Error checking profile existence:', checkError);
+        return { success: false, error: checkError.message };
+      }
+
+      const now = new Date().toISOString();
+
+      // Create new profile with all required fields from your schema
+      const profileInsert = {
+        id: userId,
+        display_name: profileData.display_name || profileData.full_name?.split(' ')[0] || null,
+        full_name: profileData.full_name || null,
+        email: profileData.email || null,
+        bio: null,
+        avatar_url: null,
+        location: null,
+        total_listening_time: 0,
+        subscriptions_count: 0,
+        downloads_count: 0,
+        notifications_enabled: true,
+        auto_download_enabled: false,
+        cellular_data_enabled: false,
+        profile_visibility: 'public',
+        show_listening_activity: true,
+        dark_mode_enabled: false,
+        two_factor_enabled: false,
+        created_at: now,
+        updated_at: now,
+        pending_email: null,
+        email_change_token: null,
+        email_change_requested_at: null,
+        password_changed_at: null,
+        registration_id: profileData.registration_id || null,
+        registration_timestamp: profileData.registration_timestamp || now,
+        app_version: profileData.app_version || '1.0.0',
+        platform: profileData.platform || 'mobile',
+        email_verified_at: profileData.email_verified_at || null,
+        verification_attempts: 0,
+        last_verification_attempt: null
+      };
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert(profileInsert)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating user profile:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log('User profile created successfully for:', userId);
+      return { success: true, data };
+    } catch (error) {
+      console.error('Unexpected error creating profile:', error);
+      return { success: false, error: 'Failed to create profile' };
+    }
+  }
+
+  // Enhanced registration with proper profile creation order
   async registerUser(formData) {
     try {
       const validation = this.validateRegistrationForm(formData);
@@ -264,6 +356,7 @@ class SignupService {
       }
 
       const registrationId = this.generateRegistrationId();
+      const registrationTimestamp = new Date().toISOString();
 
       await this.storeTemporaryRegistrationData(registrationId, {
         fullName,
@@ -278,13 +371,12 @@ class SignupService {
         options: {
           data: {
             full_name: fullName,
-            display_name: fullName.split(' ')[0], // Use first name as display name
+            display_name: fullName.split(' ')[0],
             registration_id: registrationId,
-            registration_timestamp: new Date().toISOString(),
-            app_version: '1.0.0', // Add your app version
+            registration_timestamp: registrationTimestamp,
+            app_version: '1.0.0',
             platform: 'mobile'
           },
-          // Configure email template (if you have custom templates)
           emailRedirectTo: 'your-app://auth/callback'
         }
       });
@@ -295,7 +387,6 @@ class SignupService {
         let userFriendlyError = 'Failed to create account. Please try again.';
         let fieldErrors = null;
 
-        // Enhanced error handling
         if (error.message.includes('User already registered') || 
             error.message.includes('already registered')) {
           userFriendlyError = 'An account with this email already exists';
@@ -348,22 +439,51 @@ class SignupService {
         }
       };
 
-      // If user is immediately signed in
-      if (data.session) {
-        try {
-          // Store auth data
-          await this.storeAuthData(data.user, data.session);
-          
-          // Create/update profile
-          await this.createUserProfile(data.user.id, {
-            full_name: fullName,
-            display_name: fullName.split(' ')[0]
-          });
-          
-          await this.clearTemporaryRegistrationData(registrationId);
-        } catch (postRegistrationError) {
-          console.warn('Post-registration setup failed:', postRegistrationError);
+      // CRITICAL: Always create profile, whether user is immediately signed in or not
+      try {
+        console.log('Creating user profile...');
+        
+        const profileData = {
+          full_name: fullName,
+          display_name: fullName.split(' ')[0],
+          email: email,
+          registration_id: registrationId,
+          registration_timestamp: registrationTimestamp,
+          app_version: '1.0.0',
+          platform: 'mobile',
+          email_verified_at: data.session ? new Date().toISOString() : null
+        };
+
+        const profileResult = await this.createUserProfile(data.user.id, profileData);
+
+        if (!profileResult.success) {
+          console.error('Failed to create profile during signup:', profileResult.error);
+          // Return error since profile creation is critical
+          return {
+            success: false,
+            error: 'Account created but profile setup failed. Please contact support.',
+            errors: null,
+            data: null,
+            registrationId
+          };
         }
+
+        // If user is immediately signed in, store auth data
+        if (data.session && data.user) {
+          await this.storeAuthData(data.user, data.session);
+          await this.clearTemporaryRegistrationData(registrationId);
+        }
+
+        console.log('User registration and profile creation completed successfully');
+      } catch (postRegistrationError) {
+        console.error('Error in post-registration setup:', postRegistrationError);
+        return {
+          success: false,
+          error: 'Account created but setup failed. Please contact support.',
+          errors: null,
+          data: null,
+          registrationId
+        };
       }
 
       return result;
@@ -386,32 +506,6 @@ class SignupService {
       await AsyncStorage.setItem('lastLogin', new Date().toISOString());
     } catch (error) {
       console.error('Error storing auth data:', error);
-    }
-  }
-
-  // Create user profile
-  async createUserProfile(userId, profileData) {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .upsert({
-          id: userId,
-          ...profileData,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'id'
-        });
-
-      if (error) {
-        console.error('Error creating user profile:', error);
-        return { success: false, error: error.message };
-      }
-
-      return { success: true, data };
-    } catch (error) {
-      console.error('Unexpected error creating profile:', error);
-      return { success: false, error: 'Failed to create profile' };
     }
   }
 
@@ -461,8 +555,21 @@ class SignupService {
       }
 
       if (user && user.email === email.trim().toLowerCase()) {
+        const isVerified = user.email_confirmed_at !== null;
+        
+        // Update profile with verification status if verified
+        if (isVerified) {
+          await supabase
+            .from('profiles')
+            .update({ 
+              email_verified_at: user.email_confirmed_at,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', user.id);
+        }
+        
         return { 
-          verified: user.email_confirmed_at !== null,
+          verified: isVerified,
           user: user,
           error: null 
         };
@@ -504,97 +611,14 @@ class SignupService {
 
       // Clear local storage
       await AsyncStorage.multiRemove(['user', 'session', 'lastLogin']);
-      
+
       return { success: true };
-    } catch (error) {
-      console.error('Unexpected error signing out:', error);
-      return { success: false, error: 'Failed to sign out' };
+    } finally {
+      // Clear registration cache
+      this.registrationCache.clear();
+      this.verificationAttempts.clear();
     }
   }
 }
 
 export const signupService = new SignupService();
-
-// Enhanced React hook
-import { useState, useCallback } from 'react';
-
-export const useSignup = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [errors, setErrors] = useState({});
-
-  const signUp = useCallback(async (formData) => {
-    setLoading(true);
-    setError(null);
-    setErrors({});
-
-    try {
-      const result = await signupService.registerUser(formData);
-      
-      if (!result.success) {
-        setError(result.error);
-        if (result.errors) {
-          setErrors(result.errors);
-        }
-      }
-
-      return result;
-    } catch (error) {
-      const errorMessage = 'An unexpected error occurred';
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const resendVerification = useCallback(async (email) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await signupService.resendEmailVerification(email);
-      
-      if (!result.success) {
-        setError(result.error);
-      }
-
-      return result;
-    } catch (error) {
-      const errorMessage = 'Failed to resend verification email';
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const checkPasswordStrength = useCallback((password) => {
-    return signupService.checkPasswordStrength(password);
-  }, []);
-
-  const validateForm = useCallback((formData) => {
-    return signupService.validateRegistrationForm(formData);
-  }, []);
-
-  const getCurrentUser = useCallback(async () => {
-    return await signupService.getCurrentUser();
-  }, []);
-
-  const signOut = useCallback(async () => {
-    return await signupService.signOut();
-  }, []);
-
-  return {
-    loading,
-    error,
-    errors,
-    signUp,
-    resendVerification,
-    checkPasswordStrength,
-    validateForm,
-    getCurrentUser,
-    signOut,
-    signupService
-  };
-};

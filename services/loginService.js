@@ -1,4 +1,3 @@
-// services/loginService.js - Fixed version with proper error handling
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -91,18 +90,76 @@ class LoginService {
     }
   }
 
-  // Record login activity with better error handling
-  async recordLoginActivity(userId) {
+  // Ensure user profile exists before recording login activity
+  async ensureUserProfile(userId, userData = {}) {
+    if (!userId) {
+      console.warn('No userId provided to ensureUserProfile');
+      return false;
+    }
+
+    try {
+      // Check if profile already exists
+      const { data: existingProfile, error: checkError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .single();
+
+      if (existingProfile) {
+        // Profile exists, no need to create
+        return true;
+      }
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        // Error other than "not found"
+        console.error('Error checking profile existence:', checkError);
+        return false;
+      }
+
+      // Profile doesn't exist, create it
+      const { error: createError } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          full_name: userData.full_name || userData.user_metadata?.full_name || null,
+          display_name: userData.display_name || userData.user_metadata?.display_name || null,
+          email: userData.email || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (createError) {
+        console.error('Error creating user profile:', createError);
+        return false;
+      }
+
+      console.log('User profile created successfully for:', userId);
+      return true;
+    } catch (error) {
+      console.error('Error in ensureUserProfile:', error);
+      return false;
+    }
+  }
+
+  // Record login activity with profile creation check
+  async recordLoginActivity(userId, userData = {}) {
     if (!userId) {
       console.warn('No userId provided to recordLoginActivity');
       return null;
     }
 
     try {
+      // Ensure user profile exists first
+      const profileExists = await this.ensureUserProfile(userId, userData);
+      if (!profileExists) {
+        console.warn('Could not ensure user profile exists, skipping login activity recording');
+        return null;
+      }
+
       const deviceInfo = await this.getDeviceInfo();
       this.currentSessionId = this.generateSessionId();
 
-      // Check if the RPC function exists before calling it
+      // Now record login activity
       const { data, error } = await supabase.rpc('record_login_activity', {
         p_user_id: userId,
         p_ip_address: deviceInfo.ip,
@@ -228,7 +285,7 @@ class LoginService {
       if (data.user && data.session) {
         // Record login activity (don't fail if this fails)
         try {
-          await this.recordLoginActivity(data.user.id);
+          await this.recordLoginActivity(data.user.id, data.user);
         } catch (recordError) {
           console.warn('Could not record login activity:', recordError);
         }
@@ -266,9 +323,14 @@ class LoginService {
       if (error) throw error;
 
       if (data.user) {
-        // Record login activity for new user (don't fail if this fails)
+        // For new signups, record login activity with user data
         try {
-          await this.recordLoginActivity(data.user.id);
+          const userDataForProfile = {
+            ...data.user,
+            ...additionalData,
+            email: data.user.email
+          };
+          await this.recordLoginActivity(data.user.id, userDataForProfile);
         } catch (recordError) {
           console.warn('Could not record login activity:', recordError);
         }
@@ -467,7 +529,7 @@ class LoginService {
         
         if (!storedSessionId) {
           // If no stored session ID, create a new one
-          await this.recordLoginActivity(user.id);
+          await this.recordLoginActivity(user.id, user);
         } else {
           this.currentSessionId = storedSessionId;
         }
@@ -500,7 +562,7 @@ class LoginService {
       
       if (!storedSessionId) {
         // Create new session for restored user
-        await this.recordLoginActivity(storedAuth.user.id);
+        await this.recordLoginActivity(storedAuth.user.id, storedAuth.user);
       } else {
         this.currentSessionId = storedSessionId;
       }
@@ -545,7 +607,7 @@ class LoginService {
           // Record login activity for automatic sign-ins (like refresh tokens)
           const currentSessionId = await this.getCurrentSessionId();
           if (!currentSessionId) {
-            await this.recordLoginActivity(session.user.id);
+            await this.recordLoginActivity(session.user.id, session.user);
           }
           
           // Store authentication data
@@ -598,152 +660,3 @@ class LoginService {
 
 // Export singleton instance
 export const loginService = new LoginService();
-
-// Hook for easy access in components - Fixed version
-import { useState, useEffect } from 'react';
-
-export const useAuth = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState(null);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    // Get initial session
-    const getInitialSession = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        // First, try to get current session from Supabase
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.warn('Error getting initial session:', sessionError);
-        }
-        
-        if (session?.user && isMounted) {
-          // Active session found
-          setSession(session);
-          setUser(session.user);
-          await loginService.initializeSession();
-        } else {
-          // No active session, check for stored authentication
-          const storedAuth = await loginService.getStoredAuthData();
-          
-          if (storedAuth && await loginService.isStoredAuthValid() && isMounted) {
-            console.log('Restoring authentication from stored data');
-            
-            // Try to restore session with stored data
-            const restored = await loginService.initializeSessionWithStoredAuth();
-            
-            if (restored && isMounted) {
-              setUser(storedAuth.user);
-              // Note: session might not be fully restored, but user data is available
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error getting initial session:', error);
-        if (isMounted) {
-          setError(error);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    getInitialSession();
-
-    // Set up auth state listener
-    const subscription = loginService.setupAuthStateListener((event, session) => {
-      if (!isMounted) return;
-      
-      console.log('Auth state changed:', event);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-      setError(null);
-    });
-
-    return () => {
-      isMounted = false;
-      subscription?.unsubscribe();
-    };
-  }, []);
-
-  // Enhanced refresh auth function
-  const refreshAuth = async (userData, token) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Restore authentication state
-      const success = await loginService.refreshAuth(userData, token);
-      
-      if (success) {
-        setUser(userData);
-        console.log('Authentication refreshed successfully');
-      }
-      
-      return success;
-    } catch (error) {
-      console.error('Error refreshing auth:', error);
-      setError(error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const signIn = async (email, password) => {
-    setLoading(true);
-    setError(null);
-    const result = await loginService.signInWithEmail(email, password);
-    if (result.error) {
-      setError(result.error);
-    }
-    setLoading(false);
-    return result;
-  };
-
-  const signUp = async (email, password, additionalData) => {
-    setLoading(true);
-    setError(null);
-    const result = await loginService.signUpWithEmail(email, password, additionalData);
-    if (result.error) {
-      setError(result.error);
-    }
-    setLoading(false);
-    return result;
-  };
-
-  const signOut = async () => {
-    setLoading(true);
-    setError(null);
-    const result = await loginService.signOut();
-    if (result.error) {
-      setError(result.error);
-    }
-    setUser(null);
-    setSession(null);
-    setLoading(false);
-    return result;
-  };
-
-  return {
-    user,
-    session,
-    loading,
-    error,
-    signIn,
-    signUp,
-    signOut,
-    refreshAuth,
-    loginService
-  };
-};

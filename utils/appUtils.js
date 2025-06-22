@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loginService } from '../services/loginService';
+import { useAuth } from '../hooks/useAuth';
 import { STORAGE_KEYS } from '../constants/appConstants';
 
 // Enhanced app state reset with selective clearing

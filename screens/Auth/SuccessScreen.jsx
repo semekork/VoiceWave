@@ -1,17 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  TouchableOpacity,
-  StatusBar,
-  Image,
-  Animated,
-  Dimensions,
-  Easing,
-  Vibration
-} from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { View,Text,StyleSheet,SafeAreaView,TouchableOpacity,StatusBar,Image,Animated,Dimensions,Easing,Vibration } from "react-native";
+import { useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -21,38 +10,32 @@ const { width, height } = Dimensions.get("window");
 
 const SuccessScreen = () => {
   const navigation = useNavigation();
+  const route = useRoute();
   const [animationComplete, setAnimationComplete] = useState(false);
-  
-  // Main animations
+
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(50)).current;
   const buttonScaleAnim = useRef(new Animated.Value(0.95)).current;
-  
-  // Confetti animation values
+
   const confettiOpacity = useRef(new Animated.Value(0)).current;
   const confettiTranslateY = useRef(new Animated.Value(-100)).current;
-  
-  // Particle animations for success effect
+
   const particleAnims = Array(8).fill().map(() => ({
     opacity: useRef(new Animated.Value(0)).current,
     translate: useRef(new Animated.Value(0)).current,
     scale: useRef(new Animated.Value(0)).current,
   }));
-  
-  // Animated values for decorative circles
+
   const circle1Anim = useRef(new Animated.Value(0)).current;
   const circle2Anim = useRef(new Animated.Value(0)).current;
   const circle3Anim = useRef(new Animated.Value(0)).current;
-  
-  // Animation for the progress indicator
+
   const progressAnim = useRef(new Animated.Value(0)).current;
-  
-  // Pulse animation for the success circle
+
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  
+
   useEffect(() => {
-    // Trigger haptic feedback on load
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Vibration.vibrate([0, 50, 50, 50]);
@@ -75,7 +58,7 @@ const SuccessScreen = () => {
       Animated.timing(scaleAnim, {
         toValue: 1,
         duration: 600,
-        easing: Easing.out(Easing.back(1.5)),
+        easing: Easing.back(1.5),
         useNativeDriver: true,
       }),
       
@@ -167,13 +150,13 @@ const SuccessScreen = () => {
         Animated.timing(pulseAnim, {
           toValue: 1.05,
           duration: 1000,
-          easing: Easing.inOut(Easing.sine),
+          easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
           duration: 1000,
-          easing: Easing.inOut(Easing.sine),
+          easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
       ])
@@ -309,7 +292,7 @@ const SuccessScreen = () => {
         />
       );
     }
-    
+
     return confettiElements;
   };
 
@@ -320,10 +303,8 @@ const SuccessScreen = () => {
       const distance = 60;
       const x = Math.cos(angle) * distance;
       const y = Math.sin(angle) * distance;
-      
-      // Alternate shapes between circles and stars
       const isCircle = index % 2 === 0;
-      
+
       return (
         <Animated.View
           key={index}
@@ -394,7 +375,7 @@ const SuccessScreen = () => {
             { 
               transform: [
                 { scale: scaleAnim },
-                { scale: pulseAnim } // Additional pulse animation
+                { scale: pulseAnim } 
               ] 
             }
           ]}>
@@ -407,8 +388,7 @@ const SuccessScreen = () => {
                 style={styles.successImage}
                 resizeMode="contain"
               />
-              
-              {/* Particles that emit from the success icon */}
+
               {renderParticles()}
             </LinearGradient>
           </Animated.View>
@@ -610,7 +590,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 10,
-    overflow: 'visible', // To allow particles to overflow
+    overflow: 'visible', 
   },
   successImage: {
     width: 160,
