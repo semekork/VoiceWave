@@ -22,6 +22,8 @@ import { BlurView } from 'expo-blur';
 import { useProfileImage } from '../../context/ProfileImageContext';
 import { getAdaptiveGradientColors } from '../../utils/colorExtractor';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -40,7 +42,6 @@ const ProfileScreen = ({ navigation }) => {
     notifications: true,
     autoDownload: false,
     cellularData: true,
-    darkMode: false,
   });
 
   const [gradientColors, setGradientColors] = useState(['#9C3141', '#262726']);
@@ -49,7 +50,6 @@ const ProfileScreen = ({ navigation }) => {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Enhanced profile image context usage
   const {
     profileImage,
     loading: imageLoading,
@@ -64,6 +64,9 @@ const ProfileScreen = ({ navigation }) => {
     getShareableImageUrl,
     hasCustomProfileImage,
   } = useProfileImage();
+
+
+  const { signOut: authSignOut, user: authUser } = useAuth();
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const headerOpacity = scrollY.interpolate({
@@ -357,44 +360,105 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
+  // Enhanced sign-out function with dual options
   const handleSignOut = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Sign Out', 
-          style: 'destructive', 
-          onPress: performSignOut
-        },
-      ]
-    );
-  };
+  Alert.alert(
+    'Sign Out',
+    'Are you sure you want to sign out?',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { 
+        text: 'Sign Out', 
+        style: 'destructive', 
+        onPress: () => performSignOut()
+      },
+    ]
+  );
+};
 
+  
   const performSignOut = async () => {
+  try {
+    setIsSigningOut(true);
+    
+    
+    await clearLocalUserData();
+    
+
+    setUser({
+      name: '',
+      email: '',
+      bio: '',
+      joinDate: 'March 2023',
+      totalListeningTime: 0,
+      subscriptions: 0,
+      downloads: 0,
+    });
+    setCurrentUserId(null);
+    
+    
     try {
-      setIsSigningOut(true);
+      const result = await authSignOut({ 
+        removeBiometric: true
+      });
       
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        throw error;
+      if (result && !result.success) {
+        console.warn('Server sign out had issues:', result.error);
+        
       }
+    } catch (serverError) {
+      console.warn('Server sign out failed:', serverError);
+    }
+    
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'AuthStack' }],
+    });
+    
+    console.log('Sign out completed successfully');
+    
+  } catch (error) {
+    console.error('Error during sign out:', error);
+    
+    // Even if there are errors, still try to navigate away for user experience
+    try {
       navigation.reset({
         index: 0,
         routes: [{ name: 'AuthStack' }],
       });
-      
-    } catch (error) {
-      console.error('Error signing out:', error);
+    } catch (navError) {
+      console.error('Navigation error during sign out:', navError);
       Alert.alert(
         'Sign Out Error', 
-        'Failed to sign out. Please try again.',
+        'There was an issue signing out. Please restart the app.',
         [{ text: 'OK' }]
       );
-    } finally {
-      setIsSigningOut(false);
+    }
+  } finally {
+    setIsSigningOut(false);
+  }
+};
+
+  // Helper function to clear local user data
+  const clearLocalUserData = async () => {
+    try {
+      // Clear AsyncStorage data
+      const keysToRemove = [
+        '@user_data',
+        '@user_preferences', 
+        '@cached_profile',
+        '@listening_history',
+        '@downloaded_episodes',
+        '@subscriptions',
+        '@favorites',
+      ];
+      
+      await AsyncStorage.multiRemove(keysToRemove);
+      
+      console.log('Local user data cleared successfully');
+    } catch (error) {
+      console.error('Error clearing local user data:', error);
+      throw error;
     }
   };
 
@@ -613,7 +677,7 @@ const ProfileScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Sign Out Button */}
+        {/* Enhanced Sign Out Button with dual options */}
         <TouchableOpacity 
           style={[styles.signOutButton, (isSigningOut || isInitialLoading) && styles.signOutButtonDisabled]} 
           onPress={handleSignOut}
@@ -622,7 +686,10 @@ const ProfileScreen = ({ navigation }) => {
           {isSigningOut ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Text style={styles.signOutText}>Sign Out</Text>
+            <>
+              <Ionicons name="log-out-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.signOutText}>Sign Out</Text>
+            </>
           )}
         </TouchableOpacity>
 
@@ -631,6 +698,7 @@ const ProfileScreen = ({ navigation }) => {
     </SafeAreaView>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
