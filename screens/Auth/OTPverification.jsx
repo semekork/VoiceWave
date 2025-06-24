@@ -461,12 +461,6 @@ const OTPVerificationScreen = ({ navigation, route }) => {
                   style={{ opacity: isButtonActive ? 1 : 0.6 }}
                 >
                   <View style={styles.continueButton}>
-                    <LinearGradient
-                      colors={isButtonActive ? ["#1963A7", "#49A1D1"] : ["#8391A1", "#A8B1BD"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.continueButtonGradient}
-                    >
                       {isLoading ? (
                         <ActivityIndicator color="#FFFFFF" size="small" />
                       ) : (
@@ -475,7 +469,6 @@ const OTPVerificationScreen = ({ navigation, route }) => {
                           <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                         </>
                       )}
-                    </LinearGradient>
                   </View>
                 </TouchableOpacity>
               </Animated.View>
@@ -684,6 +677,11 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     overflow: 'hidden',
     marginTop: 8,
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: "#2A2526",
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -692,14 +690,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 5,
     elevation: 5,
-  },
-  continueButtonGradient: {
-    width: '100%',
-    borderRadius: 15,
-    padding: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   continueButtonText: {
     color: '#FFFFFF',

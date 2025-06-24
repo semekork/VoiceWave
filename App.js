@@ -18,7 +18,7 @@ export default function App() {
     <AudioPlayerProvider>
       <ProfileImageProvider>
         <NavigationContainer>
-          <StatusBar style="light" />
+          <StatusBar style="" />
           <AppContent />
         </NavigationContainer>
       </ProfileImageProvider>
