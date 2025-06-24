@@ -1,21 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  TouchableOpacity,
-  StatusBar,
-  Image,
-  TextInput,
-  Animated,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-  Dimensions,
-} from "react-native";
+import {View,Text,StyleSheet,SafeAreaView,TouchableOpacity,StatusBar,Image,TextInput,Animated,Keyboard,KeyboardAvoidingView,Platform,Alert,ActivityIndicator,Dimensions,} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -639,18 +623,8 @@ const LoginScreen = () => {
                     <Animated.View
                       style={{ transform: [{ scale: buttonScaleAnim }] }}
                     >
-                      <LinearGradient
-                        colors={
-                          isLoading
-                            ? ["#7A94B5", "#A8C1DC"]
-                            : ["#1963A7", "#49A1D1"]
-                        }
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={[
-                          styles.loginButton,
-                          isLoading && styles.loginButtonDisabled,
-                        ]}
+                      <View
+                        style={[styles.loginButton, isLoading && styles.loginButtonDisabled,]}
                       >
                         {isLoading ? (
                           <View style={styles.loadingContainer}>
@@ -662,7 +636,7 @@ const LoginScreen = () => {
                         ) : (
                           <Text style={styles.loginButtonText}>Sign In</Text>
                         )}
-                      </LinearGradient>
+                      </View>
                     </Animated.View>
                   </TouchableOpacity>
 
@@ -907,6 +881,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     alignItems: "center",
     marginBottom: 24,
+    backgroundColor: "#2A2526",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -914,7 +889,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   loginButtonDisabled: {
-    opacity: 0.8,
+    opacity: 0.6,
   },
   loginButtonText: {
     color: "#FFFFFF",
@@ -969,8 +944,6 @@ const styles = StyleSheet.create({
   bioAuthLoader: {
     marginRight: 12,
   },
-
-  // Footer Section
   footerSection: {
     flex: 0,
     paddingBottom: 16,

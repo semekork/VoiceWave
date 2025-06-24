@@ -450,17 +450,12 @@ const SuccessScreen = () => {
                 activeOpacity={0.95}
                 style={{width: '100%'}}
               >
-                <LinearGradient
-                  colors={["#1963A7", "#49A1D1"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.continueButton}
-                >
+                <View style={styles.continueButton}>
                   <View style={styles.buttonContent}>
                     <Text style={styles.continueButtonText}>CONTINUE</Text>
                     <Ionicons name="chevron-forward" size={22} color="#fff" />
                   </View>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </Animated.View>
           </Animated.View>

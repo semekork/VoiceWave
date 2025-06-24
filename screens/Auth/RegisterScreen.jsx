@@ -212,7 +212,6 @@ const RegisterScreen = ({ navigation }) => {
     [navigation]
   );
 
-  // Handle sign up - OPTIMIZED
   const handleSignUp = useCallback(async () => {
     Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -256,14 +255,12 @@ const RegisterScreen = ({ navigation }) => {
       });
 
       if (result.success) {
-        // OPTIMIZED: Always navigate to SuccessScreen, pass verification status as params
         const message = result.data.needsEmailVerification
           ? "We've sent you a confirmation link. Please check your email to verify your account."
           : "Account created successfully! Welcome aboard.";
 
         navigateToSuccess(message);
       } else {
-        // Handle specific error cases with optimized alerts
         if (result.error.includes("already exists")) {
           Alert.alert(
             "Account Exists",
@@ -272,7 +269,7 @@ const RegisterScreen = ({ navigation }) => {
               { text: "Cancel", style: "cancel" },
               {
                 text: "Sign In",
-                onPress: () => navigation.replace("LoginScreen"), // Use replace for cleaner navigation
+                onPress: () => navigation.replace("LoginScreen"),
               },
             ]
           );
@@ -614,10 +611,7 @@ const RegisterScreen = ({ navigation }) => {
                     <Animated.View
                       style={{ transform: [{ scale: buttonScale }] }}
                     >
-                      <LinearGradient
-                        colors={["#1963A7", "#49A1D1"]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
+                      <View
                         style={[
                           styles.signUpButton,
                           loading && styles.signUpButtonDisabled,
@@ -630,7 +624,7 @@ const RegisterScreen = ({ navigation }) => {
                             Create Account
                           </Text>
                         )}
-                      </LinearGradient>
+                      </View>
                     </Animated.View>
                   </TouchableOpacity>
 
@@ -828,6 +822,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     alignItems: "center",
     marginBottom: 24,
+    backgroundColor: "#2A2526",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
