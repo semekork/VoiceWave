@@ -475,14 +475,6 @@ export default function BrowseScreen({ navigation }) {
           { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={onRefresh}
-            tintColor="#007AFF"
-            colors={['#007AFF']}
-          />
-        }
       >
         {/* Hero Section */}
         {renderHeroSection()}
