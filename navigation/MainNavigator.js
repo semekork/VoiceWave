@@ -16,6 +16,7 @@ import TermsScreen from "../screens/Settings/TermsScreen";
 import AboutScreen from "../screens/Settings/AboutScreen";
 import ReleaseNotes from "../screens/Settings/ReleaseNotes";
 import PodcastDetailScreen from "../screens/Home/PodcastDetailsScreen";
+import EpisodeDetailScreen from "../screens/Home/EpisodeDetailsScreen";
 import EqualizerScreen from "../components/Equalizer";
 import DeleteAccountScreen from "../screens/Auth/DeleteAccount";
 import GoodbyeScreen from "../screens/Profile/GoodbyeScreen";
@@ -116,6 +117,13 @@ const MainNavigator = () => {
             animation: 'slide_from_bottom',
           }}
         />
+        <Stack.Screen
+          name={SCREEN_NAMES.EDETAILS}
+          component={EpisodeDetailScreen}
+          options={{
+            presentation: 'modal'
+          }}
+          />
         <Stack.Screen
           name={SCREEN_NAMES.DELETE_ACCOUNT} 
           component={DeleteAccountScreen}
