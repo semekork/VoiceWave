@@ -19,14 +19,11 @@ const MiniPlayer = () => {
     currentPodcast,
   } = useGlobalAudioPlayer();
 
-  // Move all useEffect hooks here, before any conditional returns
   useEffect(() => {
     if (error) {
       console.log("🚨 Audio error:", error);
     }
   }, [error]);
-
-  // Conditional return AFTER all hooks are called
   if (!currentPodcast) {
     return null;
   }
