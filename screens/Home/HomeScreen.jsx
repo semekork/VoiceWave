@@ -7,7 +7,8 @@ import { BlurView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
 import { useProfileImage } from '../../context/ProfileImageContext';
 import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext';
-import { SCREEN_NAMES } from '../../navigation/types'; 
+import { SCREEN_NAMES } from '../../navigation/types';
+import colors from '../../constants/colors.js';
 
 import { 
   getTrendingEpisodes,
@@ -84,14 +85,14 @@ export default function HomeScreen() {
     const hasHalfStar = rating % 1 !== 0;
 
     for (let i = 0; i < fullStars; i++) {
-      stars.push(<Ionicons key={i} name="star" size={12} color="#FFD700" />);
+      stars.push(<Ionicons key={i} name="star" size={12} color={colors.warning} />);
     }
     if (hasHalfStar) {
-      stars.push(<Ionicons key="half" name="star-half" size={12} color="#FFD700" />);
+      stars.push(<Ionicons key="half" name="star-half" size={12} color={colors.warning} />);
     }
     const remainingStars = 5 - Math.ceil(rating);
     for (let i = 0; i < remainingStars; i++) {
-      stars.push(<Ionicons key={`empty-${i}`} name="star-outline" size={12} color="#FFD700" />);
+      stars.push(<Ionicons key={`empty-${i}`} name="star-outline" size={12} color={colors.warning} />);
     }
     return stars;
   };
@@ -118,7 +119,7 @@ export default function HomeScreen() {
         </View>
       )}
       <TouchableOpacity onPress={() => playEpisode(episode)}>
-        <Ionicons name="play-circle-outline" size={32} color="#9C3141" />
+        <Ionicons name="play-circle-outline" size={32} color={colors.primary} />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -203,15 +204,14 @@ export default function HomeScreen() {
   );
 }
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: colors.homeBackground,
   },
   header: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: colors.headerBorder,
   },
   headerContent: {
     flexDirection: 'row',
@@ -223,13 +223,13 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: 34,
     fontWeight: 'bold',
-    color: '#000',
+    color: colors.textBlack,
   },
   avatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#E5E5EA',
+    backgroundColor: colors.avatarBackground,
   },
   scrollView: {
     flex: 1,
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#000',
+    color: colors.textBlack,
     marginBottom: 16,
   },
   
@@ -249,11 +249,11 @@ const styles = StyleSheet.create({
   episodeItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: colors.shadowBlack,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
@@ -271,12 +271,12 @@ const styles = StyleSheet.create({
   episodeTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: colors.textBlack,
     marginBottom: 4,
   },
   episodePodcast: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: colors.textEpisodeMeta,
     marginBottom: 8,
   },
   episodeMeta: {
@@ -285,30 +285,30 @@ const styles = StyleSheet.create({
   },
   episodeDuration: {
     fontSize: 12,
-    color: '#9C3141',
-    backgroundColor: '#F2F2F7',
+    color: colors.primary,
+    backgroundColor: colors.durationBackground,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
   episodePlays: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: colors.textEpisodeMeta,
   },
   episodeDate: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: colors.textEpisodeMeta,
   },
   
   // Podcast Item Styles
   podcastItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: colors.shadowBlack,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
@@ -326,12 +326,12 @@ const styles = StyleSheet.create({
   podcastTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: colors.textBlack,
     marginBottom: 4,
   },
   podcastHost: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: colors.textEpisodeMeta,
     marginBottom: 8,
   },
   podcastRating: {
@@ -341,12 +341,12 @@ const styles = StyleSheet.create({
   },
   podcastRatingText: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: colors.textEpisodeMeta,
     marginLeft: 4,
   },
   
   newBadge: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: colors.error,
     borderRadius: 8,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
     right: 8,
   },
   newBadgeText: {
-    color: '#fff',
+    color: colors.White,
     fontSize: 10,
     fontWeight: 'bold',
   },
