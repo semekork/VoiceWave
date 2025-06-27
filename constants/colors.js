@@ -13,6 +13,9 @@ const colors = {
   // Screen specific backgrounds
   homeBackground: '#F2F2F7',
   avatarBackground: '#E5E5EA',
+  searchBackground: '#FAFAFA',
+  searchInputBackground: '#F8F8F8',
+  searchInputActiveBackground: '#FFFFFF',
   
   // Container colors
   iconContainer: '#2A2A2A',
@@ -24,6 +27,10 @@ const colors = {
   textBlack: '#000',
   textEpisodeMeta: '#8E8E93',
   textWhite: '#FFFFFF',
+  textSearchPlaceholder: '#999',
+  textSearchLoading: '#666',
+  textSearchEmpty: '#333',
+  textSearchEmptySubtitle: '#666',
   
   // Interactive colors
   success: '#34C759',
@@ -36,11 +43,16 @@ const colors = {
   separator: '#E0E0E0',
   headerBorder: 'rgba(0,0,0,0.1)',
   imageBorder: '#E5E5EA',
+  searchBorder: '#F0F0F0',
+  searchInputBorder: 'transparent',
+  searchInputActiveBorder: '#9C3141',
   
   // Overlay and shadow colors
   overlay: 'rgba(38, 39, 38, 0.05)',
   shadow: 'rgba(0, 0, 0, 0.05)',
   shadowBlack: '#000',
+  searchShadow: 'rgba(0, 0, 0, 0.08)',
+  searchInputShadow: 'rgba(156, 49, 65, 0.1)',
   
   // Glass/Blur effect colors
   glassBackground: 'rgba(255,255,255,0.95)',
@@ -54,13 +66,34 @@ const colors = {
   buttonBackground: 'rgba(0,0,0,0.05)',
   buttonBackgroundSecondary: 'rgba(142,142,147,0.1)',
   accentButtonBackground: 'rgba(0,122,255,0.1)',
+  searchButtonBackground: '#F8F8F8',
   
   // Utility colors
   White: '#FFFFFF',
   transparent: 'transparent',
+  gray: '#666',
+  lightGray: '#CCC',
+  veryLightGray: '#E0E0E0',
   
   // Duration badge background
   durationBackground: '#F2F2F7',
+  
+  // Search specific colors
+  search: {
+    podcastTag: '#9C3141',
+    episodeTag: '#FF6B35',
+    emptyIcon: '#E0E0E0',
+    emptyBackground: '#F5F5F5',
+    recentIconBackground: '#F5F5F5',
+    chipBackground: '#FFFFFF',
+    chipText: '#333',
+    chipIcon: '#666',
+    clearText: '#9C3141',
+    actionButton: '#9C3141',
+    typeTagPodcast: '#9C3141',
+    typeTagEpisode: '#FF6B35',
+    resultImageOverlay: '#9C3141'
+  },
   
   // Gradient color sets
   gradients: {
