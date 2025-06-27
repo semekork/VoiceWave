@@ -14,6 +14,7 @@ import * as Haptics from "expo-haptics";
 import { SCREEN_NAMES, TAB_CONFIG } from "./types";
 import { useTabAnalytics } from "../hooks/useTabAnalytics";
 import CustomTabBarButton from "../components/CustomTabBarButton";
+import colors from "../constants/colors";
 
 // Screen imports
 import HomeScreen from "../screens/Home/HomeScreen";
@@ -123,7 +124,7 @@ function TabsNavigator({ navigation }) {
       <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
         <Ionicons 
           name={focused ? tabConfig.icon : tabConfig.iconOutline} 
-          color={focused ? "#FFFFFF" : "#807F7F"} 
+          color={focused ? colors.White : "#807F7F"} 
           size={26} 
         />
       </View>
@@ -213,7 +214,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     paddingBottom: 0,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
     shadowRadius: 16,
@@ -224,11 +225,11 @@ const styles = StyleSheet.create({
   },
   blurBackground: {
     flex: 1,
-    backgroundColor: "rgba(31, 31, 31, 0.95)",
+    backgroundColor: colors.tabBackground,
     borderRadius: 32,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: colors.tabborderColor,
   },
   tabLabel: {
     fontSize: 11,
@@ -241,11 +242,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#2A2A2A",
+    backgroundColor: colors.iconContainer,
   },
   activeIconContainer: {
-    backgroundColor: "#9C3141",
-    shadowColor: "#9C3141",
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
