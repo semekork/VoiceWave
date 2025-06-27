@@ -19,6 +19,14 @@ const MiniPlayer = () => {
     currentPodcast,
   } = useGlobalAudioPlayer();
 
+  // Move all useEffect hooks here, before any conditional returns
+  useEffect(() => {
+    if (error) {
+      console.log("🚨 Audio error:", error);
+    }
+  }, [error]);
+
+  // Conditional return AFTER all hooks are called
   if (!currentPodcast) {
     return null;
   }
@@ -42,12 +50,6 @@ const MiniPlayer = () => {
     console.log("🔊 playPause triggered, isPlaying:", isPlaying);
     playPause();
   };
-
-  useEffect(() => {
-    if (error) {
-      console.log("🚨 Audio error:", error);
-    }
-  }, [error]);
 
   return (
     <TouchableOpacity style={styles.container} onPress={handlePress}>
