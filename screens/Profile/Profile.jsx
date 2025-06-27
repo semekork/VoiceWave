@@ -671,7 +671,7 @@ const ProfileScreen = ({ navigation }) => {
             <MenuItem
               icon="information-circle-outline"
               title="About"
-              subtitle={`Version 2.1.0 (Build 42)`}
+              subtitle={`Version 1.1.0 (Build 42)`}
               onPress={() => navigation.navigate('AboutScreen')}
             />
           </View>
@@ -687,7 +687,7 @@ const ProfileScreen = ({ navigation }) => {
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <>
-              <Ionicons name="log-out-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+
               <Text style={styles.signOutText}>Sign Out</Text>
             </>
           )}

@@ -28,8 +28,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const LoginScreen = () => {
   const navigation = useNavigation();
   const { signIn, user, loading: authLoading, loginService } = useAuth();
-  
-  // Use the biometric hook instead of manual implementation
+
   const {
     isSupported: isBiometricSupported,
     biometricType,

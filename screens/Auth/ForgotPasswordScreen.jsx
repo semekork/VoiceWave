@@ -197,7 +197,6 @@ const ForgotPasswordScreen = ({ navigation }) => {
     
     // Password recovery animation - more intense shaking when button is pressed
     Animated.sequence([
-      // First stop the current animation by resetting values
       Animated.parallel([
         Animated.timing(shakeX, {
           toValue: 0,
@@ -210,7 +209,6 @@ const ForgotPasswordScreen = ({ navigation }) => {
           useNativeDriver: true,
         }),
       ]),
-      // Then do a more intense shake
       Animated.sequence([
         Animated.timing(shakeX, {
           toValue: -8,
@@ -251,9 +249,9 @@ const ForgotPasswordScreen = ({ navigation }) => {
     ]).start();
     
     try {
-      // Send password reset email using Supabase
+      e
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'your-app://reset-password', // Replace with your app's deep link
+        redirectTo: 'voicewave://reset-password', 
       });
 
       setIsLoading(false);
@@ -285,7 +283,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
         [
           {
             text: 'OK',
-            onPress: () => navigation.goBack(), // Go back to login screen
+            onPress: () => navigation.goBack(),
             style: 'default'
           }
         ]
@@ -583,6 +581,7 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     flex: 1,
+    width: "100%",
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
