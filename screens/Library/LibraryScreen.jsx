@@ -23,27 +23,13 @@ import {
   getEpisodesByPodcast,
   getSubscribedPodcasts
 } from '../../constants/podcastData';
+import colors from '../../constants/colors';
+import { SCREEN_NAMES } from '../../navigation/types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
-// Keep the original color palette
-const colors = {
-  primary: '#9C3141',
-  secondary: '#262726',
-  background: '#F5F5F5',
-  cardBackground: '#FFFFFF',
-  textPrimary: '#262726',
-  textSecondary: '#666666',
-  textMuted: '#999999',
-  success: '#34C759',
-  progressBackground: '#E5E5EA',
-  separator: '#E0E0E0',
-  overlay: 'rgba(38, 39, 38, 0.05)',
-  shadow: 'rgba(0, 0, 0, 0.05)',
-};
 
-// Enhanced library sections with new icons and descriptions
 const librarySections = [
   {
     id: 'recently_played',
@@ -60,14 +46,6 @@ const librarySections = [
     icon: 'download-outline',
     color: colors.success,
     count: 8
-  },
-  {
-    id: 'shows',
-    title: 'Your Shows',
-    subtitle: 'Subscribed podcasts',
-    icon: 'radio-outline',
-    color: '#007AFF',
-    count: 5
   },
   {
     id: 'favorites',
@@ -121,26 +99,11 @@ const createDownloadedEpisodes = () => {
   }));
 };
 
-// Create subscribed shows
-const createSubscribedShows = () => {
-  return getSubscribedPodcasts(8).map((podcast, index) => ({
-    ...podcast,
-    id: podcast.id,
-    title: podcast.title,
-    author: podcast.author,
-    artwork: podcast.image,
-    episodeCount: podcast.episodeCount || Math.floor(Math.random() * 100 + 10),
-    newEpisodes: index % 3 === 0 ? Math.floor(Math.random() * 5 + 1) : 0,
-    lastUpdated: index < 2 ? 'today' : index < 4 ? 'yesterday' : `${index} days ago`,
-    isNotificationEnabled: index % 2 === 0
-  }));
-};
 
 export default function LibraryScreen({ navigation }) {
   const [selectedSection, setSelectedSection] = useState('recently_played');
   const [recentEpisodes, setRecentEpisodes] = useState([]);
   const [downloadedEpisodes, setDownloadedEpisodes] = useState([]);
-  const [subscribedShows, setSubscribedShows] = useState([]);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
   const scrollY = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -149,8 +112,7 @@ export default function LibraryScreen({ navigation }) {
   useEffect(() => {
     setRecentEpisodes(createRecentEpisodes());
     setDownloadedEpisodes(createDownloadedEpisodes());
-    setSubscribedShows(createSubscribedShows());
-    
+
     // Fade in animation
     Animated.timing(fadeAnim, {
       toValue: 1,
@@ -184,11 +146,7 @@ export default function LibraryScreen({ navigation }) {
   };
 
   const handleEpisodePress = (episode) => {
-    navigation.navigate('EpisodeDetail', { episode });
-  };
-
-  const handleShowPress = (show) => {
-    navigation.navigate('ShowDetail', { show });
+    navigation.navigate(SCREEN_NAMES.EDETAILS, { episode });
   };
 
   const handlePlayPause = (episode) => {
@@ -209,8 +167,6 @@ export default function LibraryScreen({ navigation }) {
         return recentEpisodes;
       case 'downloaded':
         return downloadedEpisodes;
-      case 'shows':
-        return subscribedShows;
       default:
         return [];
     }
@@ -270,7 +226,6 @@ export default function LibraryScreen({ navigation }) {
     </View>
   );
 
-  // Enhanced episode card with better visual hierarchy
   const renderRecentEpisode = ({ item, index }) => (
     <Animated.View
       style={[
@@ -530,8 +485,6 @@ export default function LibraryScreen({ navigation }) {
           return renderRecentEpisode({ item, index });
         case 'downloaded':
           return renderDownloadedEpisode({ item, index });
-        case 'shows':
-          return renderShow({ item, index });
         default:
           return null;
       }
@@ -692,7 +645,7 @@ const styles = StyleSheet.create({
   sectionChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.cardBackground,
+    backgroundColor: colors.White,
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
