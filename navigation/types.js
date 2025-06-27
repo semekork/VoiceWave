@@ -33,6 +33,7 @@ export const SCREEN_NAMES = {
   // CONTENT & DETAILS
   // =============================================================================
   DETAILS: 'PodcastDetailsScreen',
+  EDETAILS: 'EposideDetailsScreen',
   
   // =============================================================================
   // MEDIA PLAYER & QUEUE
