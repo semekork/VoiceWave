@@ -25,6 +25,7 @@ import {
   searchEpisodes,
   searchSuggestions
 } from '../../constants/podcastData';
+import colors from '../../constants/colors';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -215,7 +216,7 @@ export default function SearchScreen({ navigation }) {
             <Ionicons 
               name={item.type === 'podcast' ? 'library-outline' : 'play'} 
               size={16} 
-              color="#FFFFFF" 
+              color={colors.textWhite} 
             />
           </View>
         </View>
@@ -228,7 +229,7 @@ export default function SearchScreen({ navigation }) {
             {item.author || item.category}
           </Text>
           <View style={styles.resultMeta}>
-            <View style={[styles.typeTag, { backgroundColor: item.type === 'podcast' ? '#9C3141' : '#FF6B35' }]}>
+            <View style={[styles.typeTag, { backgroundColor: item.type === 'podcast' ? colors.search.typeTagPodcast : colors.search.typeTagEpisode }]}>
               <Text style={styles.typeTagText}>
                 {item.type === 'podcast' ? 'PODCAST' : 'EPISODE'}
               </Text>
@@ -240,7 +241,7 @@ export default function SearchScreen({ navigation }) {
             )}
             {item.rating && (
               <View style={styles.rating}>
-                <Ionicons name="star" size={12} color="#FFD700" />
+                <Ionicons name="star" size={12} color={colors.gold} />
                 <Text style={styles.ratingText}>{item.rating}</Text>
               </View>
             )}
@@ -251,7 +252,7 @@ export default function SearchScreen({ navigation }) {
           <Ionicons 
             name={item.type === 'podcast' ? 'add-circle-outline' : 'play-circle-outline'} 
             size={28} 
-            color="#9C3141" 
+            color={colors.search.actionButton} 
           />
         </TouchableOpacity>
       </TouchableOpacity>
@@ -265,7 +266,7 @@ export default function SearchScreen({ navigation }) {
       activeOpacity={0.8}
     >
       <Text style={styles.quickSearchText}>{item}</Text>
-      <Ionicons name="search" size={14} color="#666" style={styles.quickSearchIcon} />
+      <Ionicons name="search" size={14} color={colors.search.chipIcon} style={styles.quickSearchIcon} />
     </TouchableOpacity>
   );
 
@@ -276,7 +277,7 @@ export default function SearchScreen({ navigation }) {
       activeOpacity={0.7}
     >
       <View style={styles.recentIconContainer}>
-        <Ionicons name="time-outline" size={18} color="#9C3141" />
+        <Ionicons name="time-outline" size={18} color={colors.primary} />
       </View>
       <Text style={styles.recentText}>{item}</Text>
       <TouchableOpacity
@@ -284,14 +285,14 @@ export default function SearchScreen({ navigation }) {
         style={styles.removeRecent}
         activeOpacity={0.7}
       >
-        <Ionicons name="close" size={16} color="#CCC" />
+        <Ionicons name="close" size={16} color={colors.lightGray} />
       </TouchableOpacity>
     </TouchableOpacity>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.White} />
       
       {/* Header */}
       <View style={styles.header}>
@@ -300,17 +301,17 @@ export default function SearchScreen({ navigation }) {
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={24} color={colors.textBlack} />
         </TouchableOpacity>
         
         <View style={styles.searchContainer}>
           <View style={[styles.searchInputContainer, isActive && styles.searchInputActive]}>
-            <Ionicons name="search" size={20} color="#9C3141" />
+            <Ionicons name="search" size={20} color={colors.primary} />
             <TextInput
               ref={searchInputRef}
               style={styles.searchInput}
               placeholder="Search podcasts and episodes"
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.textSearchPlaceholder}
               value={searchQuery}
               onChangeText={setSearchQuery}
               returnKeyType="search"
@@ -319,7 +320,7 @@ export default function SearchScreen({ navigation }) {
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={clearSearch} activeOpacity={0.7}>
-                <Ionicons name="close-circle" size={20} color="#CCC" />
+                <Ionicons name="close-circle" size={20} color={colors.lightGray} />
               </TouchableOpacity>
             )}
           </View>
@@ -330,7 +331,7 @@ export default function SearchScreen({ navigation }) {
       <View style={styles.content}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#9C3141" />
+            <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.loadingText}>Searching...</Text>
           </View>
         ) : searchQuery && results.length > 0 ? (
@@ -345,7 +346,7 @@ export default function SearchScreen({ navigation }) {
         ) : searchQuery && results.length === 0 && !isLoading ? (
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconContainer}>
-              <Ionicons name="search" size={64} color="#E0E0E0" />
+              <Ionicons name="search" size={64} color={colors.search.emptyIcon} />
             </View>
             <Text style={styles.emptyTitle}>No results found</Text>
             <Text style={styles.emptySubtitle}>
@@ -398,18 +399,18 @@ export default function SearchScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.searchBackground,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.cardBackground,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: colors.searchBorder,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: colors.shadowBlack,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -418,7 +419,7 @@ const styles = StyleSheet.create({
     marginRight: 16,
     padding: 8,
     borderRadius: 20,
-    backgroundColor: '#F8F8F8',
+    backgroundColor: colors.searchInputBackground,
   },
   searchContainer: {
     flex: 1,
@@ -426,17 +427,17 @@ const styles = StyleSheet.create({
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8F8F8',
+    backgroundColor: colors.searchInputBackground,
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: colors.searchInputBorder,
   },
   searchInputActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#9C3141',
-    shadowColor: '#9C3141',
+    backgroundColor: colors.searchInputActiveBackground,
+    borderColor: colors.searchInputActiveBorder,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -445,25 +446,25 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#000',
+    color: colors.textBlack,
     marginLeft: 12,
     marginRight: 8,
     fontWeight: '400',
   },
   content: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.searchBackground,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.searchBackground,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: colors.textSearchLoading,
     fontWeight: '500',
   },
   resultsList: {
@@ -476,10 +477,10 @@ const styles = StyleSheet.create({
   resultContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: colors.shadowBlack,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -492,7 +493,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 12,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: colors.searchBorder,
   },
   resultImageOverlay: {
     position: 'absolute',
@@ -501,11 +502,11 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#9C3141',
+    backgroundColor: colors.search.resultImageOverlay,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: colors.White,
   },
   resultInfo: {
     flex: 1,
@@ -515,13 +516,13 @@ const styles = StyleSheet.create({
   resultTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#000',
+    color: colors.textBlack,
     marginBottom: 6,
     lineHeight: 22,
   },
   resultSubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: colors.gray,
     marginBottom: 12,
     fontWeight: '500',
   },
@@ -539,12 +540,12 @@ const styles = StyleSheet.create({
   typeTagText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: colors.textWhite,
     letterSpacing: 0.8,
   },
   duration: {
     fontSize: 12,
-    color: '#666',
+    color: colors.gray,
     marginRight: 12,
     fontWeight: '600',
   },
@@ -554,14 +555,14 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.gray,
     marginLeft: 4,
     fontWeight: '600',
   },
   actionButton: {
     padding: 12,
     borderRadius: 12,
-    backgroundColor: '#F8F8F8',
+    backgroundColor: colors.searchButtonBackground,
   },
   emptyContainer: {
     flex: 1,
@@ -573,7 +574,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.search.emptyBackground,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
@@ -581,12 +582,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#333',
+    color: colors.textSearchEmpty,
     marginBottom: 12,
   },
   emptySubtitle: {
     fontSize: 16,
-    color: '#666',
+    color: colors.textSearchEmptySubtitle,
     textAlign: 'center',
     lineHeight: 24,
     fontWeight: '400',
@@ -607,12 +608,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#000',
+    color: colors.textBlack,
     marginBottom: 20,
   },
   clearText: {
     fontSize: 16,
-    color: '#9C3141',
+    color: colors.search.clearText,
     fontWeight: '600',
   },
   quickSearchGrid: {
@@ -627,12 +628,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.search.chipBackground,
     paddingVertical: 20,
     paddingHorizontal: 20,
     borderRadius: 16,
     marginVertical: 6,
-    shadowColor: '#000',
+    shadowColor: colors.shadowBlack,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -641,7 +642,7 @@ const styles = StyleSheet.create({
   quickSearchText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: colors.search.chipText,
   },
   quickSearchIcon: {
     marginLeft: 8,
@@ -651,10 +652,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 4,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     marginVertical: 4,
-    shadowColor: '#000',
+    shadowColor: colors.shadowBlack,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
     shadowRadius: 2,
@@ -664,7 +665,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.search.recentIconBackground,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -672,12 +673,12 @@ const styles = StyleSheet.create({
   recentText: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
+    color: colors.search.chipText,
     fontWeight: '500',
   },
   removeRecent: {
     padding: 8,
     borderRadius: 12,
-    backgroundColor: '#F8F8F8',
+    backgroundColor: colors.searchButtonBackground,
   },
 });
