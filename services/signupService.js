@@ -442,7 +442,7 @@ class SignupService {
             app_version: '1.0.0',
             platform: 'mobile'
           },
-          emailRedirectTo: 'your-app://auth/callback'
+          emailRedirectTo: 'voicewave://auth/callback'
         }
       });
 
@@ -606,7 +606,7 @@ class SignupService {
         type: 'signup',
         email: email.trim().toLowerCase(),
         options: {
-          emailRedirectTo: 'your-app://auth/callback'
+          emailRedirectTo: 'voicewave://auth/callback'
         }
       });
 

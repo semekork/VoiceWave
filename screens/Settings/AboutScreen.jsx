@@ -21,7 +21,7 @@ const AboutScreen = ({ navigation }) => {
   const scrollY = useRef(new Animated.Value(0)).current;
   const [appInfo] = useState({
     name: 'VoiceWave',
-    version: '2.1.0',
+    version: '1.1.0',
     buildNumber: '42',
     releaseDate: 'September 2025',
     developer: 'VoiceWave Inc.',
@@ -334,7 +334,7 @@ const AboutScreen = ({ navigation }) => {
           <Text style={styles.sectionTitle}>App Statistics</Text>
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
-              <Text style={styles.statNumber}>500K+</Text>
+              <Text style={styles.statNumber}>50+</Text>
               <Text style={styles.statLabel}>Active Users</Text>
             </View>
             <View style={styles.statCard}>

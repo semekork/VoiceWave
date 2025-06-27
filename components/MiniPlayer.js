@@ -19,6 +19,11 @@ const MiniPlayer = () => {
     currentPodcast,
   } = useGlobalAudioPlayer();
 
+  useEffect(() => {
+    if (error) {
+      console.log("🚨 Audio error:", error);
+    }
+  }, [error]);
   if (!currentPodcast) {
     return null;
   }
@@ -42,12 +47,6 @@ const MiniPlayer = () => {
     console.log("🔊 playPause triggered, isPlaying:", isPlaying);
     playPause();
   };
-
-  useEffect(() => {
-    if (error) {
-      console.log("🚨 Audio error:", error);
-    }
-  }, [error]);
 
   return (
     <TouchableOpacity style={styles.container} onPress={handlePress}>
