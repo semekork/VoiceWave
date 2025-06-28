@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, Image, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView, ScrollView, Image, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import useGreeting from '../../hooks/useGreeting';
@@ -11,15 +11,14 @@ import { SCREEN_NAMES } from '../../navigation/types';
 import colors from '../../constants/colors.js';
 
 import { 
-  getTrendingEpisodes,
-  getNewEpisodes,
-  getInProgressEpisodes,
-  getSubscribedPodcasts,
-  getCategoryRecommendations,
+  // API functions only
+  getTrendingPodcastsAPI,
+  getRecentEpisodesAPI,
+  getPodcastsByCategoryAPI,
   setCurrentlyPlaying,
   formatDuration,
   formatPublishedDate
-} from '../../constants/podcastData'; 
+} from '../../constants/podcastIndexAPI.js';
 
 export default function HomeScreen() {
   const { greeting } = useGreeting('');
@@ -33,21 +32,79 @@ export default function HomeScreen() {
     sound
   } = useGlobalAudioPlayer();
 
+  // State for API data
+  const [apiData, setApiData] = useState({
+    trendingPodcasts: [],
+    recentEpisodes: [],
+    categoryRecommendations: [],
+    isLoading: true,
+    error: null
+  });
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Load API data on component mount
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  const loadInitialData = async () => {
+    try {
+      setApiData(prev => ({ ...prev, isLoading: true, error: null }));
+
+      // Load data from API only
+      const [trending, recent, recommendations] = await Promise.allSettled([
+        getTrendingPodcastsAPI(4),
+        getRecentEpisodesAPI(5),
+        getPodcastsByCategoryAPI('Health & Wellness', 5)
+      ]);
+
+      setApiData({
+        trendingPodcasts: trending.status === 'fulfilled' ? trending.value : [],
+        recentEpisodes: recent.status === 'fulfilled' ? recent.value : [],
+        categoryRecommendations: recommendations.status === 'fulfilled' ? recommendations.value : [],
+        isLoading: false,
+        error: null
+      });
+
+    } catch (error) {
+      console.error('Error loading initial data:', error);
+      setApiData(prev => ({
+        ...prev,
+        isLoading: false,
+        error: 'Failed to load content. Please check your connection and try again.'
+      }));
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadInitialData();
+    setRefreshing(false);
+  };
+
   const navigateToPodcastDetails = (podcast) => {
     if (!podcast?.id) {
       Alert.alert('Error', 'Unable to load podcast details');
       return;
     }
 
+    console.log('Navigating to details with podcast:', podcast);
+
+    // Navigate to PodcastDetailsScreen with proper podcast data
     navigation.navigate(SCREEN_NAMES.DETAILS, { 
       podcast: {
         ...podcast,
-        host: podcast.author || podcast.host,
+        id: podcast.id,
+        title: podcast.title,
+        author: podcast.author || podcast.host,
+        image: podcast.image,
         subtitle: podcast.subtitle || podcast.author,
         description: podcast.description || `${podcast.title} is a great podcast`,
         category: podcast.category || 'Entertainment',
         rating: podcast.rating || 4.5,
-        totalEpisodes: podcast.episodeCount || 10
+        totalEpisodes: podcast.episodeCount || podcast.totalEpisodes || 10,
+        episodeCount: podcast.episodeCount || podcast.totalEpisodes || 10
       }
     });
   };
@@ -59,7 +116,7 @@ export default function HomeScreen() {
         title: episode.title,
         author: episode.author,
         image: episode.image,
-        audioSource: episode.audioSource || episode.metadata?.audioSource || `https://example.com/audio/${episode.id}.mp3`,
+        audioSource: episode.audioSource || episode.metadata?.audioSource || episode.audioUrl || `https://example.com/audio/${episode.id}.mp3`,
         subtitle: episode.subtitle || episode.description,
         description: episode.description || `Episode: ${episode.title}`,
         duration: episode.duration,
@@ -75,7 +132,7 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.error('Error playing episode:', error);
-      Alert.alert('Error', 'Unable to play episode');
+      Alert.alert('Error', 'Unable to play episode. Please try again.');
     }
   };
 
@@ -103,14 +160,18 @@ export default function HomeScreen() {
       style={styles.episodeItem}
       onPress={() => playEpisode(episode)}
     >
-      <Image source={episode.image} style={styles.episodeImage} />
+      <Image 
+        source={episode.image} 
+        style={styles.episodeImage}
+        defaultSource={require('../../assets/Auth/google.png')} // Add a placeholder image
+      />
       <View style={styles.episodeContent}>
         <Text style={styles.episodeTitle} numberOfLines={2}>{episode.title}</Text>
         <Text style={styles.episodePodcast} numberOfLines={1}>{episode.author}</Text>
         <View style={styles.episodeMeta}>
           <Text style={styles.episodeDuration}>{formatDuration(episode.duration)}</Text>
-          <Text style={styles.episodePlays}>{episode.metadata?.plays || '0'} plays</Text>
-          <Text style={styles.episodeDate}>{formatPublishedDate(episode.publishedDate)}</Text>
+          <Text style={styles.episodePlays}>{episode.metadata?.plays || Math.floor(Math.random() * 1000)} plays</Text>
+          <Text style={styles.episodeDate}>{formatPublishedDate(episode.publishedDate || episode.publishedTimestamp)}</Text>
         </View>
       </View>
       {episode.isNew && (
@@ -130,23 +191,72 @@ export default function HomeScreen() {
       style={styles.podcastItem}
       onPress={() => navigateToPodcastDetails(podcast)}
     >
-      <Image source={podcast.image} style={styles.podcastImage} />
+      <Image 
+        source={podcast.image} 
+        style={styles.podcastImage}
+        defaultSource={require('../../assets/blankpp.png')} // Add a placeholder image
+      />
       <View style={styles.podcastContent}>
         <Text style={styles.podcastTitle}>{podcast.title}</Text>
         <Text style={styles.podcastHost}>{podcast.author}</Text>
         <View style={styles.podcastRating}>
           {podcast.rating && renderStars(podcast.rating)}
-          <Text style={styles.podcastRatingText}>{podcast.rating || 'N/A'}</Text>
+          <Text style={styles.podcastRatingText}>{podcast.rating ? podcast.rating.toFixed(1) : 'N/A'}</Text>
         </View>
+
       </View>
     </TouchableOpacity>
   );
 
-  // Get data using the imported functions
-  const topEpisodes = getTrendingEpisodes(3);
-  const youMightLike = getCategoryRecommendations('Health & Wellness', 5);
-  const showsYouFollow = getSubscribedPodcasts(5);
-  const newEpisodes = getNewEpisodes(5);
+  const renderErrorMessage = () => {
+    if (!apiData.error) return null;
+    
+    return (
+      <View style={styles.errorContainer}>
+        <Ionicons name="warning-outline" size={20} color={colors.warning} />
+        <Text style={styles.errorText}>{apiData.error}</Text>
+      </View>
+    );
+  };
+
+  const renderSection = (title, data, renderItem) => {
+    // Only render if API data is available
+    if (data && data.length > 0) {
+      return (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          {data.map(renderItem)}
+        </View>
+      );
+    }
+
+    return null;
+  };
+
+  const renderEmptyState = () => {
+    if (apiData.isLoading) return null;
+    
+    const hasAnyData = apiData.trendingPodcasts.length > 0 || 
+                       apiData.recentEpisodes.length > 0 || 
+                       apiData.categoryRecommendations.length > 0;
+    
+    if (!hasAnyData) {
+      return (
+        <View style={styles.emptyState}>
+          <Ionicons name="radio-outline" size={64} color={colors.textSecondary} />
+          <Text style={styles.emptyStateTitle}>No Content Available</Text>
+          <Text style={styles.emptyStateMessage}>
+            Unable to load podcast content. Please check your internet connection and try again.
+          </Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadInitialData}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    
+    return null;
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -165,38 +275,33 @@ export default function HomeScreen() {
         </View>
       </BlurView>
 
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
-        {/* Top Episodes */}
-        {topEpisodes.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Top Episodes</Text>
-            {topEpisodes.map(renderEpisodeItem)}
-          </View>
-        )}
+      {/* Error Message */}
+      {renderErrorMessage()}
 
-        {/* You Might Like */}
-        {youMightLike.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>You Might Like</Text>
-            {youMightLike.map(renderPodcastItem)}
-          </View>
-        )}
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      >
 
-        {/* Shows You Follow */}
-        {showsYouFollow.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Shows You Follow</Text>
-            {showsYouFollow.map(renderPodcastItem)}
-          </View>
-        )}
+        {/* Trending Podcasts (API only) */}
+        {renderSection('Trending Podcasts', apiData.trendingPodcasts, renderPodcastItem)}
 
-        {/* New Episodes */}
-        {newEpisodes.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>New Episodes</Text>
-            {newEpisodes.map(renderEpisodeItem)}
-          </View>
-        )}
+        {/* Recent Episodes (API only) */}
+        {renderSection('Recent Episodes', apiData.recentEpisodes, renderEpisodeItem)}
+
+        {/* You Might Like (API only) */}
+        {renderSection('You Might Like', apiData.categoryRecommendations, renderPodcastItem)}
+
+        {/* Empty State */}
+        {renderEmptyState()}
 
         <View style={styles.bottomPadding} />
       </ScrollView>
@@ -243,6 +348,71 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.textBlack,
     marginBottom: 16,
+  },
+  
+  // Loading State
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 50,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+
+  // Error State
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.errorBackground || '#FFF3CD',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginVertical: 10,
+    borderRadius: 8,
+  },
+  errorText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: colors.errorText || '#856404',
+    flex: 1,
+  },
+
+  // Empty State
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 50,
+    paddingHorizontal: 20,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.textSecondary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateMessage: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   
   // Episode Item Styles
