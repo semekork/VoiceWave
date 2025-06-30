@@ -27,12 +27,10 @@ import {
   getRecentEpisodesAPI,
   getPodcastsByCategoryAPI,
   getAvailableCategoriesAPI,
-  useTrendingPodcasts,
-  usePodcastSearch,
-  setCurrentlyPlaying,
+} from "../../constants/PodcastAPI/podcastApiService";
+import { setCurrentlyPlaying,
   formatDuration,
-  formatPublishedDate,
-} from "../../constants/podcastIndexAPI";
+  formatPublishedDate, } from "../../constants/PodcastAPI/podcastUtils";
 import colors from "../../constants/colors";
 import styles from "./browseStyles";
 import SkeletonPreloader from "./Preloader";
@@ -130,9 +128,9 @@ export default function BrowseScreen({ navigation }) {
         getTrendingPodcastsAPI(20),
         getRecentEpisodesAPI(20),
         getAvailableCategoriesAPI(),
-        getPodcastsByCategoryAPI('Comedy', 10),
-        getPodcastsByCategoryAPI('News', 10),
-        getPodcastsByCategoryAPI('Technology', 10),
+        getPodcastsByCategoryAPI("Comedy", 10),
+        getPodcastsByCategoryAPI("News", 10),
+        getPodcastsByCategoryAPI("Technology", 10),
       ]);
 
       // Set trending podcasts
@@ -142,12 +140,14 @@ export default function BrowseScreen({ navigation }) {
       setRecentEpisodes(recentEpisodesData.slice(0, 8));
 
       // Create trending episodes from recent episodes
-      const shuffledEpisodes = [...recentEpisodesData].sort(() => 0.5 - Math.random());
+      const shuffledEpisodes = [...recentEpisodesData].sort(
+        () => 0.5 - Math.random()
+      );
       setTrendingEpisodes(shuffledEpisodes.slice(0, 8));
 
       // Create new episodes (most recent)
-      const sortedByDate = [...recentEpisodesData].sort((a, b) => 
-        b.publishedTimestamp - a.publishedTimestamp
+      const sortedByDate = [...recentEpisodesData].sort(
+        (a, b) => b.publishedTimestamp - a.publishedTimestamp
       );
       setNewEpisodes(sortedByDate.slice(0, 8));
 
@@ -161,8 +161,12 @@ export default function BrowseScreen({ navigation }) {
         .map((podcast, index) => ({
           ...podcast,
           subtitle: podcast.author,
-          badge: podcast.rating >= 4.5 ? "EDITOR'S CHOICE" : 
-                 podcast.rating >= 4.2 ? "TRENDING" : "FEATURED",
+          badge:
+            podcast.rating >= 4.5
+              ? "EDITOR'S CHOICE"
+              : podcast.rating >= 4.2
+              ? "TRENDING"
+              : "FEATURED",
           isNew: index < 2,
           gradient: getGradientForIndex(index),
           accentColor: getAccentColorForIndex(index),
@@ -195,11 +199,10 @@ export default function BrowseScreen({ navigation }) {
           accentColor: getAccentColorForIndex(index),
         }));
       setTopCharts(charts);
-
     } catch (error) {
-      console.error('Error loading content:', error);
+      console.error("Error loading content:", error);
       setError(error.message);
-      Alert.alert('Error', 'Failed to load content. Please try again.');
+      Alert.alert("Error", "Failed to load content. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -211,7 +214,7 @@ export default function BrowseScreen({ navigation }) {
       (key) => !["hero", "featured", "header", "primary", "white"].includes(key)
     );
     if (availableGradients.length === 0) {
-      return [colors.accent || '#007AFF', colors.primary || '#5856D6'];
+      return [colors.accent || "#007AFF", colors.primary || "#5856D6"];
     }
     const gradientKey = availableGradients[index % availableGradients.length];
     return colors.gradients[gradientKey];
@@ -220,7 +223,7 @@ export default function BrowseScreen({ navigation }) {
   const getAccentColorForIndex = (index) => {
     const accentKeys = Object.keys(colors.accents || {});
     if (accentKeys.length === 0) {
-      return colors.accent || '#007AFF';
+      return colors.accent || "#007AFF";
     }
     const accentKey = accentKeys[index % accentKeys.length];
     return colors.accents[accentKey];
@@ -243,7 +246,8 @@ export default function BrowseScreen({ navigation }) {
         ...podcast,
         host: podcast.author || podcast.host,
         subtitle: podcast.subtitle || podcast.author,
-        description: podcast.description || `${podcast.title} is a great podcast`,
+        description:
+          podcast.description || `${podcast.title} is a great podcast`,
         category: podcast.category || "Entertainment",
         rating: podcast.rating || 4.5,
         totalEpisodes: podcast.episodeCount || 10,
@@ -259,8 +263,11 @@ export default function BrowseScreen({ navigation }) {
         return;
       }
 
-      const audioSource = episode.audioUrl || episode.audioSource || episode.metadata?.audioSource;
-      
+      const audioSource =
+        episode.audioUrl ||
+        episode.audioSource ||
+        episode.metadata?.audioSource;
+
       const podcastForPlayer = {
         id: episode.id,
         title: episode.title,
@@ -282,7 +289,10 @@ export default function BrowseScreen({ navigation }) {
       }
     } catch (error) {
       console.error("Error playing episode:", error);
-      Alert.alert("Error", "Unable to play episode. Please try another episode.");
+      Alert.alert(
+        "Error",
+        "Unable to play episode. Please try another episode."
+      );
     }
   };
 
@@ -400,10 +410,7 @@ export default function BrowseScreen({ navigation }) {
           activeOpacity={0.8}
         >
           <LinearGradient
-            colors={[
-              colors.opacity?.white95, 
-              colors.opacity?.white80
-            ]}
+            colors={[colors.opacity?.white95, colors.opacity?.white80]}
             style={styles.featuredPlayGradient}
           >
             <Ionicons name="play" size={16} color={colors.textPrimary} />
@@ -464,7 +471,9 @@ export default function BrowseScreen({ navigation }) {
           <View style={styles.episodeMetaItem}>
             <Feather name="clock" size={10} color={colors.textSecondary} />
             <Text style={styles.episodeMetaText}>
-              {typeof item.duration === 'number' ? formatDuration(item.duration) : item.duration}
+              {typeof item.duration === "number"
+                ? formatDuration(item.duration)
+                : item.duration}
             </Text>
           </View>
           <View style={styles.episodeMetaItem}>
@@ -490,7 +499,7 @@ export default function BrowseScreen({ navigation }) {
             styles.chartRank,
             {
               backgroundColor:
-                item.rank <= 3 ? (colors.gold) : (colors.transparent),
+                item.rank <= 3 ? colors.gold : colors.transparent,
               borderWidth: item.rank <= 3 ? 0 : 1,
               borderColor: colors.imageBorder,
             },
@@ -501,7 +510,7 @@ export default function BrowseScreen({ navigation }) {
               styles.chartRankText,
               {
                 color:
-                  item.rank <= 3 ? (colors.textPrimary ) : (colors.textSecondary),
+                  item.rank <= 3 ? colors.textPrimary : colors.textSecondary,
               },
             ]}
           >
@@ -510,7 +519,7 @@ export default function BrowseScreen({ navigation }) {
         </View>
         {item.isHot && (
           <View style={styles.hotIndicator}>
-            <Feather name="trending-up" size={8} color={colors.error } />
+            <Feather name="trending-up" size={8} color={colors.error} />
           </View>
         )}
       </View>
@@ -535,7 +544,7 @@ export default function BrowseScreen({ navigation }) {
         <View style={styles.chartMeta}>
           <Text style={styles.chartCategory}>{item.category}</Text>
           <View style={styles.chartStats}>
-            <Feather name="play" size={10} color={colors.textSecondary } />
+            <Feather name="play" size={10} color={colors.textSecondary} />
             <Text style={styles.chartStatsText}>{item.plays}</Text>
           </View>
         </View>
@@ -547,7 +556,7 @@ export default function BrowseScreen({ navigation }) {
             styles.chartGrowth,
             {
               backgroundColor:
-                item.growth === "up" ? (colors.success) : (colors.error),
+                item.growth === "up" ? colors.success : colors.error,
             },
           ]}
         >
@@ -602,10 +611,8 @@ export default function BrowseScreen({ navigation }) {
 
   // Loading state
   if (loading) {
-    return (
-      <SkeletonPreloader/>
-    )
-    }
+    return <SkeletonPreloader />;
+  }
 
   // Error state
   if (error) {
@@ -619,7 +626,9 @@ export default function BrowseScreen({ navigation }) {
         <View style={styles.errorContainer}>
           <Feather name="wifi-off" size={48} color={colors.textSecondary} />
           <Text style={styles.errorText}>Failed to load content</Text>
-          <Text style={styles.errorSubtext}>Please check your connection and try again</Text>
+          <Text style={styles.errorSubtext}>
+            Please check your connection and try again
+          </Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={loadContent}
@@ -664,7 +673,7 @@ export default function BrowseScreen({ navigation }) {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.accent }
+            tintColor={colors.accent}
           />
         }
       >
@@ -763,7 +772,6 @@ export default function BrowseScreen({ navigation }) {
         {/* Bottom Spacing */}
         <View style={styles.bottomSpacing} />
       </Animated.ScrollView>
-
     </SafeAreaView>
   );
 }
