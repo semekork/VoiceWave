@@ -171,7 +171,7 @@ export default function PlayerScreen({ navigation, route }) {
 
       {/* Podcast Info */}
       <View style={styles.infoContainer}>
-        <Text style={styles.title} numberOfLines={3}>
+        <Text style={styles.title} numberOfLines={1}>
           {podcastTitle}
         </Text>
       </View>
