@@ -184,14 +184,7 @@ const OfflineScreen = ({ onRetry, onGoOffline }) => {
                   <Animated.View
                     style={{ transform: [{ scale: buttonScaleAnim }] }}
                   >
-                    <LinearGradient
-                      colors={
-                        isRetrying
-                          ? ["#7A94B5", "#A8C1DC"]
-                          : ["#1963A7", "#49A1D1"]
-                      }
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
+                    <View
                       style={[
                         styles.primaryButton,
                         isRetrying && styles.buttonDisabled,
@@ -215,7 +208,7 @@ const OfflineScreen = ({ onRetry, onGoOffline }) => {
                           <Text style={styles.primaryButtonText}>Try Again</Text>
                         </>
                       )}
-                    </LinearGradient>
+                      </View>
                   </Animated.View>
                 </TouchableOpacity>
 
@@ -259,6 +252,7 @@ const styles = StyleSheet.create({
   safeContainer: {
     flex: 1,
     paddingHorizontal: 24,
+    
   },
   animatedContainer: {
     flex: 1,
@@ -384,6 +378,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     alignItems: "center",
     marginBottom: 16,
+    backgroundColor:'#333333',
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
