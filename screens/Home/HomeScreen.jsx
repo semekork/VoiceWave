@@ -19,11 +19,13 @@ import { useProfileImage } from "../../context/ProfileImageContext";
 import { useGlobalAudioPlayer } from "../../context/AudioPlayerContext";
 import { SCREEN_NAMES } from "../../navigation/types";
 import colors from "../../constants/colors.js";
+import renderStars from "../../components/renderStar.js";
 
 import {
   getTrendingPodcastsAPI,
   getRecentEpisodesAPI,
   getPodcastsByCategoryAPI,
+  getPodcastEpisodesAPI,
 } from "../../constants/PodcastAPI/podcastApiService.js";
 
 import {
@@ -33,7 +35,7 @@ import {
 } from "../../constants/PodcastAPI/podcastUtils.js";
 
 export default function HomeScreen() {
-  const { greeting } = useGreeting("");
+  const { greeting, emoji } = useGreeting("");
   const navigation = useNavigation();
   const { getAvatarImage, profileImage } = useProfileImage();
 
@@ -48,6 +50,9 @@ export default function HomeScreen() {
     isLoading: true,
     error: null,
   });
+
+  // Add state to store episodes by podcast ID
+  const [episodesByPodcast, setEpisodesByPodcast] = useState(new Map());
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -64,17 +69,23 @@ export default function HomeScreen() {
       const [trending, recent, recommendations] = await Promise.allSettled([
         getTrendingPodcastsAPI(4),
         getRecentEpisodesAPI(5),
-        getPodcastsByCategoryAPI("Health & Wellness", 5),
+        getPodcastsByCategoryAPI("Entertainment", 5),
       ]);
 
+      const trendingPodcasts = trending.status === "fulfilled" ? trending.value : [];
+      const recentEpisodes = recent.status === "fulfilled" ? recent.value : [];
+      const categoryRecommendations = recommendations.status === "fulfilled" ? recommendations.value : [];
+
       setApiData({
-        trendingPodcasts: trending.status === "fulfilled" ? trending.value : [],
-        recentEpisodes: recent.status === "fulfilled" ? recent.value : [],
-        categoryRecommendations:
-          recommendations.status === "fulfilled" ? recommendations.value : [],
+        trendingPodcasts,
+        recentEpisodes,
+        categoryRecommendations,
         isLoading: false,
         error: null,
       });
+
+      await preloadPodcastEpisodes([...trendingPodcasts, ...categoryRecommendations]);
+
     } catch (error) {
       console.error("Error loading initial data:", error);
       setApiData((prev) => ({
@@ -84,6 +95,29 @@ export default function HomeScreen() {
           "Failed to load content. Please check your connection and try again.",
       }));
     }
+  };
+
+  // Function to preload episodes for podcasts
+  const preloadPodcastEpisodes = async (podcasts) => {
+    const episodesMap = new Map();
+    
+    const episodePromises = podcasts.map(async (podcast) => {
+      if (!podcast || !podcast.id) return;
+      
+      try {
+        const feedId = podcast.id.startsWith('pi_') ? podcast.id.substring(3) : podcast.id;
+        const episodes = await getPodcastEpisodesAPI(feedId, 20);
+        
+        if (episodes && episodes.length > 0) {
+          episodesMap.set(podcast.id, episodes);
+        }
+      } catch (error) {
+        console.warn(`Failed to load episodes for podcast ${podcast.id}:`, error);
+      }
+    });
+
+    await Promise.allSettled(episodePromises);
+    setEpisodesByPodcast(episodesMap);
   };
 
   const onRefresh = async () => {
@@ -100,23 +134,27 @@ export default function HomeScreen() {
 
     console.log("Navigating to details with podcast:", podcast);
 
-    // Navigate to PodcastDetailsScreen with proper podcast data
+    // Get episodes for this podcast from our preloaded data
+    const podcastEpisodes = episodesByPodcast.get(podcast.id) || [];
+
+    // Navigate to PodcastDetailsScreen with proper podcast data and episodes
     navigation.navigate(SCREEN_NAMES.DETAILS, {
-      podcast: {
-        ...podcast,
-        id: podcast.id,
-        title: podcast.title,
-        author: podcast.author || podcast.host,
-        image: podcast.image,
-        subtitle: podcast.subtitle || podcast.author,
-        description:
-          podcast.description || `${podcast.title} is a great podcast`,
-        category: podcast.category || "Entertainment",
-        rating: podcast.rating || 4.5,
-        totalEpisodes: podcast.episodeCount || podcast.totalEpisodes || 10,
-        episodeCount: podcast.episodeCount || podcast.totalEpisodes || 10,
-      },
-    });
+    podcast: {
+      ...podcast,
+      id: podcast.id,
+      title: podcast.title,
+      author: podcast.author || podcast.host,
+      image: podcast.image,
+      subtitle: podcast.subtitle || podcast.author,
+      description: podcast.description || `${podcast.title} is a great podcast`,
+      category: podcast.category || "Entertainment",
+      rating: podcast.rating || 4.5,
+      totalEpisodes: podcast.episodeCount || podcast.totalEpisodes || podcastEpisodes.length,
+      episodeCount: podcast.episodeCount || podcast.totalEpisodes || podcastEpisodes.length,
+    },
+    episodes: podcastEpisodes, // Pass the preloaded episodes
+    hasPreloadedEpisodes: podcastEpisodes.length > 0, // Flag to indicate we have episodes
+  });
   };
 
   const playEpisode = async (episode) => {
@@ -150,39 +188,6 @@ export default function HomeScreen() {
     }
   };
 
-  const renderStars = (rating) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(
-        <Ionicons key={i} name="star" size={12} color={colors.warning} />
-      );
-    }
-    if (hasHalfStar) {
-      stars.push(
-        <Ionicons
-          key="half"
-          name="star-half"
-          size={12}
-          color={colors.warning}
-        />
-      );
-    }
-    const remainingStars = 5 - Math.ceil(rating);
-    for (let i = 0; i < remainingStars; i++) {
-      stars.push(
-        <Ionicons
-          key={`empty-${i}`}
-          name="star-outline"
-          size={12}
-          color={colors.warning}
-        />
-      );
-    }
-    return stars;
-  };
 
   const renderEpisodeItem = (episode) => (
     <TouchableOpacity
@@ -227,29 +232,40 @@ export default function HomeScreen() {
     </TouchableOpacity>
   );
 
-  const renderPodcastItem = (podcast) => (
-    <TouchableOpacity
-      key={podcast.id}
-      style={styles.podcastItem}
-      onPress={() => navigateToPodcastDetails(podcast)}
-    >
-      <Image
-        source={podcast.image}
-        style={styles.podcastImage}
-        defaultSource={require("../../assets/blankpp.png")}
-      />
-      <View style={styles.podcastContent}>
-        <Text style={styles.podcastTitle}>{podcast.title}</Text>
-        <Text style={styles.podcastHost}>{podcast.author}</Text>
-        <View style={styles.podcastRating}>
-          {podcast.rating && renderStars(podcast.rating)}
-          <Text style={styles.podcastRatingText}>
-            {podcast.rating ? podcast.rating.toFixed(1) : "N/A"}
-          </Text>
+  const renderPodcastItem = (podcast) => {
+    // Get episode count from preloaded episodes if available
+    const podcastEpisodes = episodesByPodcast.get(podcast.id) || [];
+    const episodeCount = podcastEpisodes.length || podcast.episodeCount || podcast.totalEpisodes;
+
+    return (
+      <TouchableOpacity
+        key={podcast.id}
+        style={styles.podcastItem}
+        onPress={() => navigateToPodcastDetails(podcast)}
+      >
+        <Image
+          source={podcast.image}
+          style={styles.podcastImage}
+          defaultSource={require("../../assets/blankpp.png")}
+        />
+        <View style={styles.podcastContent}>
+          <Text style={styles.podcastTitle}>{podcast.title}</Text>
+          <Text style={styles.podcastHost}>{podcast.author}</Text>
+          <View style={styles.podcastRating}>
+            {podcast.rating && renderStars(podcast.rating)}
+            <Text style={styles.podcastRatingText}>
+              {podcast.rating ? podcast.rating.toFixed(1) : "N/A"}
+            </Text>
+          </View>
+          {episodeCount > 0 && (
+            <Text style={styles.episodeCount}>
+              {episodeCount} episode{episodeCount !== 1 ? 's' : ''}
+            </Text>
+          )}
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderErrorMessage = () => {
     if (!apiData.error) return null;
@@ -316,7 +332,7 @@ export default function HomeScreen() {
       {/* Header */}
       <BlurView intensity={95} tint="extraLight" style={styles.header}>
         <View style={styles.headerContent}>
-          <Text style={styles.heading}>{greeting}</Text>
+          <Text style={styles.heading}>{greeting} {emoji}</Text>
           <TouchableOpacity
             onPress={() => navigation.navigate(SCREEN_NAMES.PROFILE)}
           >
@@ -372,5 +388,3 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 }
-
-
