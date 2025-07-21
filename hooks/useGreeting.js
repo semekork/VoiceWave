@@ -1,64 +1,103 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { fetchHolidays } from './fetchHolidays';
 
-/**
- * A custom hook that provides greeting functionality based on time of day
- * @returns {object} An object containing greeting state and functions
- */
-const useGreeting = () => {
-  const [currentHour, setCurrentHour] = useState(() => new Date().getHours());
+const defaultGreetings = {
+  morning: 'Good morning',
+  afternoon: 'Good afternoon',
+  evening: 'Good evening',
+  night: 'Good night',
+};
 
-  // Memoized time of day calculation
+const defaultEmojis = {
+  morning: '☀️',
+  afternoon: '🌤️',
+  evening: '🌇',
+  night: '🌙',
+};
+
+const useGreeting = ({
+  greetings = {},
+  emojis = {},
+  locale = undefined,
+  timezone = undefined,
+  manualHour = null,
+  countryCode = 'GH', // Default to Ghana
+} = {}) => {
+  const getCurrentHour = useCallback(() => {
+    if (manualHour !== null) return manualHour;
+    const now = timezone
+      ? new Date(new Date().toLocaleString('en-US', { timeZone: timezone }))
+      : new Date();
+    return now.getHours();
+  }, [manualHour, timezone]);
+
+  const [currentHour, setCurrentHour] = useState(getCurrentHour);
+  const [holiday, setHoliday] = useState(null);
+
   const timeOfDay = useMemo(() => {
     if (currentHour >= 5 && currentHour < 12) return 'morning';
     if (currentHour >= 12 && currentHour < 18) return 'afternoon';
-    return 'evening';
+    if (currentHour >= 18 && currentHour < 22) return 'evening';
+    return 'night';
   }, [currentHour]);
 
-  // Memoized greeting calculation
   const greeting = useMemo(() => {
-    if (timeOfDay === 'morning') return 'Good morning';
-    if (timeOfDay === 'afternoon') return 'Good afternoon';
-    return 'Good evening';
-  }, [timeOfDay]);
+    if (holiday) return `Happy ${holiday.localName}!`;
+    return greetings[timeOfDay] || defaultGreetings[timeOfDay];
+  }, [holiday, greetings, timeOfDay]);
 
-  // Memoized function to update current hour
+  const emoji = useMemo(() => {
+    return emojis[timeOfDay] || defaultEmojis[timeOfDay];
+  }, [emojis, timeOfDay]);
+
   const updateCurrentHour = useCallback(() => {
-    const newHour = new Date().getHours();
-    setCurrentHour(prevHour => prevHour !== newHour ? newHour : prevHour);
-  }, []);
+    const newHour = getCurrentHour();
+    setCurrentHour((prev) => (prev !== newHour ? newHour : prev));
+  }, [getCurrentHour]);
 
-  // Set up interval to update greeting based on time changes
   useEffect(() => {
-    // Calculate milliseconds until next hour
+    if (manualHour !== null) return;
+
     const now = new Date();
     const nextHour = new Date(now);
     nextHour.setHours(now.getHours() + 1, 0, 0, 0);
-    const msUntilNextHour = nextHour.getTime() - now.getTime();
+    const msUntilNextHour = nextHour - now;
 
-    // Set initial timeout to sync with hour boundaries
-    const initialTimeout = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       updateCurrentHour();
-      
-      // Then set up hourly interval
-      const intervalId = setInterval(updateCurrentHour, 60 * 60 * 1000); // Every hour
-      
-      // Store interval ID for cleanup
+      const intervalId = setInterval(updateCurrentHour, 60 * 60 * 1000);
       return () => clearInterval(intervalId);
     }, msUntilNextHour);
 
-    // Clean up timeout on unmount
-    return () => clearTimeout(initialTimeout);
-  }, [updateCurrentHour]);
+    return () => clearTimeout(timeoutId);
+  }, [updateCurrentHour, manualHour]);
 
-  // Memoized function to force refresh
+  useEffect(() => {
+    const fetchTodayHoliday = async () => {
+      const year = new Date().getFullYear();
+      const holidays = await fetchHolidays(year, countryCode);
+      const today = timezone
+        ? new Date(new Date().toLocaleString('en-US', { timeZone: timezone }))
+        : new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      const match = holidays.find(h => h.date === todayStr);
+      setHoliday(match || null);
+    };
+
+    fetchTodayHoliday();
+  }, [currentHour, countryCode, timezone]);
+
   const refreshGreeting = useCallback(() => {
     updateCurrentHour();
   }, [updateCurrentHour]);
 
-  return { 
-    greeting, 
-    timeOfDay, 
-    refreshGreeting
+  return {
+    greeting,
+    timeOfDay,
+    emoji,
+    currentHour,
+    holiday,
+    refreshGreeting,
   };
 };
 
