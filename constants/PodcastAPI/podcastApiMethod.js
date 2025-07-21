@@ -1,6 +1,3 @@
-// API methods for the Podcast Index client
-import PodcastIndexClient from './podcastIndexClient';
-
 // Extend the client with API methods
 export const addApiMethods = (client) => {
   /**
