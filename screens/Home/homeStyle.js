@@ -19,7 +19,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   heading: {
-    fontSize: 34,
+    fontSize: 29,
     fontWeight: "bold",
     color: colors.textBlack,
   },
