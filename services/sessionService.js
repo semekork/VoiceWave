@@ -262,7 +262,7 @@ class SessionService {
       const sessionJson = await AsyncStorage.getItem(key);
       return sessionJson ? JSON.parse(sessionJson) : null;
     } catch (error) {
-      console.error('Error loading session from storage:', error);
+      console.error('Error loading session from storage:');
       return null;
     }
   }
