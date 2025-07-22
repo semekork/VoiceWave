@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { fetchHolidays } from './fetchHolidays';
+import { fetchHolidaysWithValidation } from './fetchHolidays';
 
 const defaultGreetings = {
   morning: 'Good morning',
@@ -63,19 +63,23 @@ const useGreeting = ({
     nextHour.setHours(now.getHours() + 1, 0, 0, 0);
     const msUntilNextHour = nextHour - now;
 
+    let intervalId;
+
     const timeoutId = setTimeout(() => {
       updateCurrentHour();
-      const intervalId = setInterval(updateCurrentHour, 60 * 60 * 1000);
-      return () => clearInterval(intervalId);
+      intervalId = setInterval(updateCurrentHour, 60 * 60 * 1000);
     }, msUntilNextHour);
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [updateCurrentHour, manualHour]);
 
   useEffect(() => {
     const fetchTodayHoliday = async () => {
       const year = new Date().getFullYear();
-      const holidays = await fetchHolidays(year, countryCode);
+      const holidays = await fetchHolidaysWithValidation(year, countryCode);
       const today = timezone
         ? new Date(new Date().toLocaleString('en-US', { timeZone: timezone }))
         : new Date();
