@@ -1,4 +1,31 @@
-// Extend the client with API methods
+// podcastApiMethod.js - API methods for PodcastIndexClient
+import PodcastIndexClient from './podcastIndexClient';
+
+// Singleton instance
+let clientInstance = null;
+
+/**
+ * Get or create client instance
+ */
+export const getClientInstance = () => {
+  if (!clientInstance) {
+    clientInstance = new PodcastIndexClient();
+    addApiMethods(clientInstance);
+  }
+  return clientInstance;
+};
+
+/**
+ * Create a new client instance with custom config
+ */
+export const createClient = (apiKey, apiSecret, userAgent) => {
+  const client = new PodcastIndexClient(apiKey, apiSecret, userAgent);
+  return addApiMethods(client);
+};
+
+/**
+ * Add API methods to the client instance
+ */
 export const addApiMethods = (client) => {
   /**
    * Search podcasts
@@ -226,5 +253,64 @@ export const addApiMethods = (client) => {
     }
   };
 
+  /**
+   * Search episodes
+   */
+  client.searchEpisodes = async function(query, limit = 20) {
+    if (!query?.trim()) {
+      throw new Error('Search query is required');
+    }
+
+    try {
+      const response = await this.makeRequest('/search/byterm', {
+        q: query.trim(),
+        max: Math.min(limit, 40),
+        fulltext: true
+      });
+
+      // Return both podcasts and episodes if available
+      const podcasts = response.feeds || [];
+      const episodes = response.items || [];
+      
+      return {
+        podcasts,
+        episodes,
+        // Combined results for backward compatibility
+        results: [
+          ...podcasts.map(p => ({ ...p, type: 'podcast' })),
+          ...episodes.map(e => ({ ...e, type: 'episode' }))
+        ]
+      };
+    } catch (error) {
+      console.error('Error searching episodes:', error);
+      throw error;
+    }
+  };
+
+  /**
+   * Get stats about the client
+   */
+  client.getStats = async function() {
+    try {
+      const cacheStats = await this.getCacheStats();
+      return {
+        ...cacheStats,
+        clientType: 'PodcastIndexClient',
+        baseUrl: this.baseUrl
+      };
+    } catch (error) {
+      console.error('Error getting client stats:', error);
+      return {
+        memoryCache: 0,
+        persistentCache: 0,
+        isOnline: true,
+        clientType: 'PodcastIndexClient',
+        baseUrl: this.baseUrl
+      };
+    }
+  };
+
   return client;
 };
+
+export default getClientInstance;
