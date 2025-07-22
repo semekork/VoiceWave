@@ -6,6 +6,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  
   header: {
     position: "absolute",
     top: 0,
@@ -38,6 +39,13 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     gap: 12,
+  },
+  mainTitle: {
+    fontSize: 30,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 4,
+    marginLeft: 20,
   },
   headerButton: {
     width: 36,
