@@ -7,7 +7,6 @@ import {
   Image,
   TouchableOpacity,
   Alert,
-  RefreshControl,
 } from "react-native";
 import styles from "./homeStyle.js";
 import { StatusBar } from "expo-status-bar";
@@ -69,7 +68,7 @@ export default function HomeScreen() {
       const [trending, recent, recommendations] = await Promise.allSettled([
         getTrendingPodcastsAPI(4),
         getRecentEpisodesAPI(5),
-        getPodcastsByCategoryAPI("Entertainment", 5),
+        getPodcastsByCategoryAPI("Documentary", 5),
       ]);
 
       const trendingPodcasts = trending.status === "fulfilled" ? trending.value : [];
@@ -350,14 +349,6 @@ export default function HomeScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         style={styles.scrollView}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
-          />
-        }
       >
         {/* Trending Podcasts (API only) */}
         {renderSection(
