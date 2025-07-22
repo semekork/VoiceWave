@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
-  StyleSheet,
   View,
   Text,
   TouchableOpacity,
@@ -9,13 +8,9 @@ import {
   StatusBar,
   Dimensions,
   Image,
-  ScrollView,
   Animated,
-  RefreshControl,
   ImageBackground,
-  Platform,
   Alert,
-  ActivityIndicator,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -52,10 +47,10 @@ export default function BrowseScreen({ navigation }) {
     sound,
   } = useGlobalAudioPlayer();
 
-  // State for API data
+  // Enhanced state management for loading
   const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("discover");
+  const [initialLoading, setInitialLoading] = useState(true); 
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [recentEpisodes, setRecentEpisodes] = useState([]);
   const [trendingEpisodes, setTrendingEpisodes] = useState([]);
   const [newEpisodes, setNewEpisodes] = useState([]);
@@ -65,12 +60,19 @@ export default function BrowseScreen({ navigation }) {
   const [categories, setCategories] = useState([]);
   const [trendingPodcasts, setTrendingPodcasts] = useState([]);
   const [error, setError] = useState(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false); 
 
   // Enhanced animations
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 150],
     outputRange: [0, 1],
     extrapolate: "clamp",
+  });
+
+  const titleOpacity = scrollY.interpolate({
+    inputRange: [0, 60, 100],
+    outputRange: [1, 0.5, 0],
+    extrapolate: 'clamp',
   });
 
   const heroParallax = scrollY.interpolate({
@@ -91,11 +93,11 @@ export default function BrowseScreen({ navigation }) {
     extrapolate: "clamp",
   });
 
-  // Load content with animations
+  
   useEffect(() => {
-    loadContent();
+    loadContent(true);
 
-    // Entrance animations
+    
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -109,14 +111,19 @@ export default function BrowseScreen({ navigation }) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, []); 
 
-  const loadContent = async () => {
+  const loadContent = async (isInitialLoad = false) => {
     try {
-      setLoading(true);
+      
+      if (isInitialLoad) {
+        setInitialLoading(true);
+      } else {
+        setBackgroundLoading(true);
+      }
+      
       setError(null);
 
-      // Load all data in parallel
       const [
         trendingPodcastsData,
         recentEpisodesData,
@@ -199,12 +206,21 @@ export default function BrowseScreen({ navigation }) {
           accentColor: getAccentColorForIndex(index),
         }));
       setTopCharts(charts);
+
+      setHasLoadedOnce(true);
+      
     } catch (error) {
       console.error("Error loading content:", error);
       setError(error.message);
-      Alert.alert("Error", "Failed to load content. Please try again.");
+      
+      // Only show alert if this is not a background refresh
+      if (!backgroundLoading && !refreshing) {
+        Alert.alert("Error", "Failed to load content. Please try again.");
+      }
     } finally {
-      setLoading(false);
+      // Clear all loading states
+      setInitialLoading(false);
+      setBackgroundLoading(false);
     }
   };
 
@@ -231,7 +247,7 @@ export default function BrowseScreen({ navigation }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadContent();
+    await loadContent(false); // false indicates not initial load
     setRefreshing(false);
   };
 
@@ -609,13 +625,13 @@ export default function BrowseScreen({ navigation }) {
     </View>
   );
 
-  // Loading state
-  if (loading) {
+  // Show skeleton preloader only on initial load
+  if (initialLoading) {
     return <SkeletonPreloader />;
   }
 
-  // Error state
-  if (error) {
+  // Error state - only show if no content has been loaded before
+  if (error && !hasLoadedOnce) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar
@@ -631,7 +647,7 @@ export default function BrowseScreen({ navigation }) {
           </Text>
           <TouchableOpacity
             style={styles.retryButton}
-            onPress={loadContent}
+            onPress={() => loadContent(true)}
             activeOpacity={0.8}
           >
             <Text style={styles.retryButtonText}>Retry</Text>
@@ -656,6 +672,11 @@ export default function BrowseScreen({ navigation }) {
           >
             <View style={styles.headerContent}>
               <Text style={styles.headerTitle}>Browse</Text>
+              {backgroundLoading && (
+                <View style={styles.backgroundLoadingIndicator}>
+                  <Feather name="refresh-cw" size={16} color={colors.accent} />
+                </View>
+              )}
             </View>
           </LinearGradient>
         </BlurView>
@@ -669,14 +690,15 @@ export default function BrowseScreen({ navigation }) {
           { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.accent}
-          />
-        }
+        refreshing={refreshing}
+        onRefresh={onRefresh}
       >
+
+        {/* Enhanced Title Section */}
+        <Animated.View style={[styles.titleSection, { opacity: titleOpacity }]}>
+          <Text style={styles.mainTitle}>Browse</Text>
+        </Animated.View>
+
         {/* Hero Section */}
         {renderHeroSection()}
 
@@ -686,8 +708,6 @@ export default function BrowseScreen({ navigation }) {
             <SectionHeader
               title="Featured Shows"
               subtitle="Editor's picks this week"
-              actionText="See All"
-              onActionPress={() => navigation.navigate("FeaturedShows")}
               icon="award"
             />
             <FlatList
@@ -708,8 +728,6 @@ export default function BrowseScreen({ navigation }) {
             <SectionHeader
               title="Trending Now"
               subtitle="What everyone's listening to"
-              actionText="See All"
-              onActionPress={() => navigation.navigate("TrendingEpisodes")}
               icon="trending-up"
             />
             <FlatList
@@ -730,8 +748,6 @@ export default function BrowseScreen({ navigation }) {
             <SectionHeader
               title="Fresh Episodes"
               subtitle="Latest releases"
-              actionText="See All"
-              onActionPress={() => navigation.navigate("NewEpisodes")}
               icon="zap"
             />
             <FlatList
@@ -752,8 +768,6 @@ export default function BrowseScreen({ navigation }) {
             <SectionHeader
               title="Top Charts"
               subtitle="Most popular shows"
-              actionText="View All"
-              onActionPress={() => navigation.navigate("TopCharts")}
               icon="bar-chart-2"
             />
             <View style={styles.chartsContainer}>
