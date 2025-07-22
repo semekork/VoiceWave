@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  StyleSheet,
   View,
   Text,
   TouchableOpacity,
@@ -11,8 +10,6 @@ import {
   Image,
   ScrollView,
   Animated,
-  Platform,
-  RefreshControl,
   Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -79,7 +76,6 @@ export default function LibraryScreen({ navigation }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   
   const { 
-    currentPodcast, 
     loadAudio, 
     setCurrentPodcast, 
     playPause, 
@@ -151,8 +147,8 @@ export default function LibraryScreen({ navigation }) {
       setLibraryData({
         recentEpisodes,
         downloadedEpisodes,
-        favoriteEpisodes: [], // Could be populated from user preferences
-        playlists: [], // Could be populated from user data
+        favoriteEpisodes: [], 
+        playlists: [],
         isLoading: false,
         error: null,
       });
@@ -167,11 +163,6 @@ export default function LibraryScreen({ navigation }) {
     }
   };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadLibraryData();
-    setRefreshing(false);
-  };
 
   // Enhanced header animation
   const headerScale = scrollY.interpolate({
@@ -592,14 +583,6 @@ export default function LibraryScreen({ navigation }) {
           { useNativeDriver: false }
         )}
         scrollEventThrottle={10}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
-          />
-        }
       >
         {/* Enhanced Title Section */}
         <Animated.View style={[styles.titleSection, { opacity: titleOpacity }]}>
