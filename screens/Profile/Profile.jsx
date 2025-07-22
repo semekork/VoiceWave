@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,26 +13,24 @@ import {
   Dimensions,
   Switch,
   Share,
-  ActivityIndicator,
-  RefreshControl,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { useProfileImage } from '../../context/ProfileImageContext';
-import { getAdaptiveGradientColors } from '../../utils/colorExtractor';
-import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../hooks/useAuth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import { useProfileImage } from "../../context/ProfileImageContext";
+import { getAdaptiveGradientColors } from "../../utils/colorExtractor";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../hooks/useAuth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 const ProfileScreen = ({ navigation }) => {
   const [user, setUser] = useState({
-    name: '',
-    email: '',
-    bio: '',
-    joinDate: 'March 2023',
+    name: "",
+    email: "",
+    bio: "",
+    joinDate: "March 2023",
     totalListeningTime: 0,
     subscriptions: 0,
     downloads: 0,
@@ -44,15 +42,12 @@ const ProfileScreen = ({ navigation }) => {
     cellularData: true,
   });
 
-  const [gradientColors, setGradientColors] = useState(['#9C3141', '#262726']);
+  const [gradientColors, setGradientColors] = useState(["#9C3141", "#262726"]);
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const [userLoading, setUserLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
 
   const {
     profileImage,
-    loading: imageLoading,
     error: imageError,
     initialized: imageInitialized,
     pickImageFromGallery,
@@ -65,20 +60,19 @@ const ProfileScreen = ({ navigation }) => {
     hasCustomProfileImage,
   } = useProfileImage();
 
-
-  const { signOut: authSignOut, user: authUser } = useAuth();
+  const { signOut: authSignOut } = useAuth();
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 100],
     outputRange: [0, 1],
-    extrapolate: 'clamp',
+    extrapolate: "clamp",
   });
 
   const profileImageScale = scrollY.interpolate({
     inputRange: [0, 100],
     outputRange: [1, 0.8],
-    extrapolate: 'clamp',
+    extrapolate: "clamp",
   });
 
   // Fetch user data from Supabase
@@ -88,50 +82,52 @@ const ProfileScreen = ({ navigation }) => {
 
   const fetchUserData = async () => {
     try {
-      setUserLoading(true);
-      
       // Get current user
-      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-      
+      const {
+        data: { user: authUser },
+        error: authError,
+      } = await supabase.auth.getUser();
+
       if (authError) {
         throw authError;
       }
 
       if (authUser) {
         setCurrentUserId(authUser.id);
-        
+
         // Get user profile data
         const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', authUser.id)
+          .from("profiles")
+          .select("*")
+          .eq("id", authUser.id)
           .single();
 
-        if (profileError && profileError.code !== 'PGRST116') {
-          console.error('Error fetching profile:', profileError);
+        if (profileError && profileError.code !== "PGRST116") {
+          console.error("Error fetching profile:", profileError);
         }
 
         // Format join date
-        const joinDate = authUser.created_at 
-          ? new Date(authUser.created_at).toLocaleDateString('en-US', { 
-              year: 'numeric', 
-              month: 'long' 
+        const joinDate = authUser.created_at
+          ? new Date(authUser.created_at).toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
             })
-          : 'Recently';
+          : "Recently";
 
         // Format listening time (convert minutes to hours)
-        const listeningHours = profile?.total_listening_time 
-          ? Math.round(profile.total_listening_time / 60) 
+        const listeningHours = profile?.total_listening_time
+          ? Math.round(profile.total_listening_time / 60)
           : 0;
 
         // Update user state with Supabase data
-        setUser(prevUser => ({
+        setUser((prevUser) => ({
           ...prevUser,
-          name: profile?.full_name || 
-                authUser.user_metadata?.full_name || 
-                authUser.email?.split('@')[0] || 
-                'User',
-          email: authUser.email || '',
+          name:
+            profile?.full_name ||
+            authUser.user_metadata?.full_name ||
+            authUser.email?.split("@")[0] ||
+            "User",
+          email: authUser.email || "",
           bio: profile?.bio || prevUser.bio,
           joinDate: joinDate,
           totalListeningTime: listeningHours,
@@ -141,10 +137,8 @@ const ProfileScreen = ({ navigation }) => {
         }));
       }
     } catch (error) {
-      console.error('Error fetching user data:', error);
-      Alert.alert('Error', 'Failed to load user data. Please try again.');
-    } finally {
-      setUserLoading(false);
+      console.error("Error fetching user data:", error);
+      Alert.alert("Error", "Failed to load user data. Please try again.");
     }
   };
 
@@ -156,64 +150,55 @@ const ProfileScreen = ({ navigation }) => {
       if (!currentUserId) return;
 
       try {
-        console.log('Setting up real-time subscription for user:', currentUserId);
-        
-        // Set up real-time subscription for profile changes
         subscription = supabase
           .channel(`profile_changes_${currentUserId}`)
           .on(
-            'postgres_changes',
+            "postgres_changes",
             {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'profiles',
+              event: "UPDATE",
+              schema: "public",
+              table: "profiles",
               filter: `id=eq.${currentUserId}`,
             },
             (payload) => {
-              console.log('Profile updated via real-time:', payload);
-              
-              // Update the local state with the new data
               const updatedProfile = payload.new;
-              
-              setUser(prevUser => ({
+
+              setUser((prevUser) => ({
                 ...prevUser,
-                name: updatedProfile.display_name || 
-                      updatedProfile.full_name || 
-                      prevUser.name,
+                name:
+                  updatedProfile.display_name ||
+                  updatedProfile.full_name ||
+                  prevUser.name,
                 bio: updatedProfile.bio || prevUser.bio,
-                totalListeningTime: updatedProfile.total_listening_time 
-                  ? Math.round(updatedProfile.total_listening_time / 60) 
+                totalListeningTime: updatedProfile.total_listening_time
+                  ? Math.round(updatedProfile.total_listening_time / 60)
                   : prevUser.totalListeningTime,
-                subscriptions: updatedProfile.subscriptions_count || prevUser.subscriptions,
+                subscriptions:
+                  updatedProfile.subscriptions_count || prevUser.subscriptions,
                 downloads: updatedProfile.downloads_count || prevUser.downloads,
-                favoriteGenres: updatedProfile.favorite_genres || prevUser.favoriteGenres,
+                favoriteGenres:
+                  updatedProfile.favorite_genres || prevUser.favoriteGenres,
               }));
 
-              // Refresh profile image when profile updates
               refreshProfileImage();
             }
           )
           .on(
-            'postgres_changes',
+            "postgres_changes",
             {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'profiles',
+              event: "INSERT",
+              schema: "public",
+              table: "profiles",
               filter: `id=eq.${currentUserId}`,
             },
             (payload) => {
-              console.log('Profile created via real-time:', payload);
-              // Handle new profile creation (in case profile was created after user registration)
               fetchUserData();
               refreshProfileImage();
             }
           )
-          .subscribe((status) => {
-            console.log('Real-time subscription status:', status);
-          });
-
+          .subscribe();
       } catch (error) {
-        console.error('Error setting up real-time subscription:', error);
+        console.error("Error setting up real-time subscription:", error);
       }
     };
 
@@ -222,7 +207,6 @@ const ProfileScreen = ({ navigation }) => {
     // Cleanup subscription on unmount or when currentUserId changes
     return () => {
       if (subscription) {
-        console.log('Cleaning up real-time subscription');
         supabase.removeChannel(subscription);
       }
     };
@@ -231,32 +215,17 @@ const ProfileScreen = ({ navigation }) => {
   // Enhanced error handling for profile image errors
   useEffect(() => {
     if (imageError) {
-      Alert.alert('Profile Image Error', imageError, [
-        { text: 'OK', onPress: clearImageError }
+      Alert.alert("Profile Image Error", imageError, [
+        { text: "OK", onPress: clearImageError },
       ]);
     }
   }, [imageError, clearImageError]);
-
-  // Enhanced refresh function that includes profile image refresh
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await Promise.all([
-        fetchUserData(),
-        refreshProfileImage()
-      ]);
-    } catch (error) {
-      console.error('Error refreshing data:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refreshProfileImage]);
 
   const handleBackPress = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      navigation.navigate('Home');
+      navigation.navigate("Home");
     }
   };
 
@@ -269,81 +238,88 @@ const ProfileScreen = ({ navigation }) => {
           const colors = await getAdaptiveGradientColors(displayImage.uri);
           setGradientColors(colors);
         } else {
-          setGradientColors(['#9C3141', '#262726']);
+          setGradientColors(["#9C3141", "#262726"]);
         }
       } catch (error) {
-        console.log('Failed to update gradient colors:', error);
-        setGradientColors(['#9C3141', '#262726']); 
+        setGradientColors(["#9C3141", "#262726"]);
       }
     };
     if (imageInitialized) {
       updateGradientColors();
     }
-  }, [profileImage, imageInitialized, getProfileScreenImage, hasCustomProfileImage]);
+  }, [
+    profileImage,
+    imageInitialized,
+    getProfileScreenImage,
+    hasCustomProfileImage,
+  ]);
 
-  
   const handleImagePicker = () => {
-    if (imageLoading) return; 
-
-    Alert.alert(
-      'Change Profile Photo',
-      'Choose an option',
-      [
-        { 
-          text: 'Camera', 
-          onPress: async () => {
-            try {
-              await takePhotoWithCamera();
-            } catch (error) {
-              console.error('Camera error:', error);
-              Alert.alert('Camera Error', 'Failed to take photo. Please check camera permissions and try again.');
-            }
-          }
-        },
-        { 
-          text: 'Gallery', 
-          onPress: async () => {
-            try {
-              await pickImageFromGallery();
-            } catch (error) {
-              console.error('Gallery error:', error);
-              Alert.alert('Gallery Error', 'Failed to pick image. Please check gallery permissions and try again.');
-            }
-          }
-        },
-        ...(hasCustomProfileImage() ? [{ 
-          text: 'Remove Photo', 
-          style: 'destructive',
-          onPress: () => {
+    Alert.alert("Change Profile Photo", "Choose an option", [
+      {
+        text: "Camera",
+        onPress: async () => {
+          try {
+            await takePhotoWithCamera();
+          } catch (error) {
             Alert.alert(
-              'Remove Photo',
-              'Are you sure you want to remove your profile photo?',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { 
-                  text: 'Remove', 
-                  style: 'destructive', 
-                  onPress: async () => {
-                    try {
-                      await removeProfileImage();
-                    } catch (error) {
-                      console.error('Remove photo error:', error);
-                      Alert.alert('Error', 'Failed to remove photo. Please try again.');
-                    }
-                  }
-                },
-              ]
+              "Camera Error",
+              "Failed to take photo. Please check camera permissions and try again."
             );
           }
-        }] : []),
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+        },
+      },
+      {
+        text: "Gallery",
+        onPress: async () => {
+          try {
+            await pickImageFromGallery();
+          } catch (error) {
+            Alert.alert(
+              "Gallery Error",
+              "Failed to pick image. Please check gallery permissions and try again."
+            );
+          }
+        },
+      },
+      ...(hasCustomProfileImage()
+        ? [
+            {
+              text: "Remove Photo",
+              style: "destructive",
+              onPress: () => {
+                Alert.alert(
+                  "Remove Photo",
+                  "Are you sure you want to remove your profile photo?",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Remove",
+                      style: "destructive",
+                      onPress: async () => {
+                        try {
+                          await removeProfileImage();
+                        } catch (error) {
+                          Alert.alert(
+                            "Error",
+                            "Failed to remove photo. Please try again."
+                          );
+                        }
+                      },
+                    },
+                  ]
+                );
+              },
+            },
+          ]
+        : []),
+      { text: "Cancel", style: "cancel" },
+    ]);
   };
 
   const handleShare = async () => {
     try {
-      const hoursText = user.totalListeningTime === 1 ? 'hour' : 'hours';
+      const hoursText = user.totalListeningTime === 1 ? "hour" : "hours";
       const shareMessage = `Check out my podcast listening stats! I've listened to ${user.totalListeningTime} ${hoursText} of amazing content and subscribed to ${user.subscriptions} podcasts.`;
       const shareableImageUrl = await getShareableImageUrl();
       const shareOptions = {
@@ -355,116 +331,96 @@ const ProfileScreen = ({ navigation }) => {
 
       await Share.share(shareOptions);
     } catch (error) {
-      console.error('Error sharing:', error);
-      Alert.alert('Share Error', 'Failed to share profile. Please try again.');
+      Alert.alert("Share Error", "Failed to share profile. Please try again.");
     }
   };
 
   // Enhanced sign-out function with dual options
   const handleSignOut = () => {
-  Alert.alert(
-    'Sign Out',
-    'Are you sure you want to sign out?',
-    [
-      { text: 'Cancel', style: 'cancel' },
-      { 
-        text: 'Sign Out', 
-        style: 'destructive', 
-        onPress: () => performSignOut()
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: () => performSignOut(),
       },
-    ]
-  );
-};
+    ]);
+  };
 
-  
   const performSignOut = async () => {
-  try {
-    setIsSigningOut(true);
-    
-    
-    await clearLocalUserData();
-    
+    try {
+      setIsSigningOut(true);
 
-    setUser({
-      name: '',
-      email: '',
-      bio: '',
-      joinDate: 'March 2023',
-      totalListeningTime: 0,
-      subscriptions: 0,
-      downloads: 0,
-    });
-    setCurrentUserId(null);
-    
-    
-    try {
-      const result = await authSignOut({ 
-        removeBiometric: true
+      await clearLocalUserData();
+
+      setUser({
+        name: "",
+        email: "",
+        bio: "",
+        joinDate: "March 2023",
+        totalListeningTime: 0,
+        subscriptions: 0,
+        downloads: 0,
       });
-      
-      if (result && !result.success) {
-        console.warn('Server sign out had issues:', result.error);
-        
+      setCurrentUserId(null);
+
+      try {
+        const result = await authSignOut({
+          removeBiometric: true,
+        });
+
+        if (result && !result.success) {
+          // Optionally handle server sign out issues
+        }
+      } catch (serverError) {
+        // Optionally handle server sign out failure
       }
-    } catch (serverError) {
-      console.warn('Server sign out failed:', serverError);
-    }
-    
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'AuthStack' }],
-    });
-    
-    console.log('Sign out completed successfully');
-    
-  } catch (error) {
-    console.error('Error during sign out:', error);
-    
-    // Even if there are errors, still try to navigate away for user experience
-    try {
+
       navigation.reset({
         index: 0,
-        routes: [{ name: 'AuthStack' }],
+        routes: [{ name: "AuthStack" }],
       });
-    } catch (navError) {
-      console.error('Navigation error during sign out:', navError);
-      Alert.alert(
-        'Sign Out Error', 
-        'There was an issue signing out. Please restart the app.',
-        [{ text: 'OK' }]
-      );
+    } catch (error) {
+      try {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "AuthStack" }],
+        });
+      } catch (navError) {
+        Alert.alert(
+          "Sign Out Error",
+          "There was an issue signing out. Please restart the app.",
+          [{ text: "OK" }]
+        );
+      }
+    } finally {
+      setIsSigningOut(false);
     }
-  } finally {
-    setIsSigningOut(false);
-  }
-};
+  };
 
   // Helper function to clear local user data
   const clearLocalUserData = async () => {
     try {
       // Clear AsyncStorage data
       const keysToRemove = [
-        '@user_data',
-        '@user_preferences', 
-        '@cached_profile',
-        '@listening_history',
-        '@downloaded_episodes',
-        '@subscriptions',
-        '@favorites',
+        "@user_data",
+        "@user_preferences",
+        "@cached_profile",
+        "@listening_history",
+        "@downloaded_episodes",
+        "@subscriptions",
+        "@favorites",
       ];
-      
+
       await AsyncStorage.multiRemove(keysToRemove);
-      
-      console.log('Local user data cleared successfully');
     } catch (error) {
-      console.error('Error clearing local user data:', error);
       throw error;
     }
   };
 
-  const StatCard = ({ title, value, icon, color = '#007AFF' }) => (
+  const StatCard = ({ title, value, icon, color = "#007AFF" }) => (
     <View style={styles.statCard}>
-      <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
+      <View style={[styles.statIcon, { backgroundColor: color + "20" }]}>
         <Ionicons name={icon} size={24} color={color} />
       </View>
       <Text style={styles.statValue}>{value}</Text>
@@ -472,7 +428,14 @@ const ProfileScreen = ({ navigation }) => {
     </View>
   );
 
-  const MenuItem = ({ icon, title, subtitle, onPress, rightElement, showArrow = true }) => (
+  const MenuItem = ({
+    icon,
+    title,
+    subtitle,
+    onPress,
+    rightElement,
+    showArrow = true,
+  }) => (
     <TouchableOpacity style={styles.menuItem} onPress={onPress}>
       <View style={styles.menuLeft}>
         <View style={styles.menuIcon}>
@@ -485,7 +448,9 @@ const ProfileScreen = ({ navigation }) => {
       </View>
       <View style={styles.menuRight}>
         {rightElement}
-        {showArrow && <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />}
+        {showArrow && (
+          <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -494,14 +459,13 @@ const ProfileScreen = ({ navigation }) => {
     <Switch
       value={value}
       onValueChange={onValueChange}
-      trackColor={{ false: '#E5E5EA', true: '#9C3141' }}
+      trackColor={{ false: "#E5E5EA", true: "#9C3141" }}
       thumbColor="#FFFFFF"
       ios_backgroundColor="#E5E5EA"
     />
   );
 
   const displayImage = getProfileScreenImage();
-  const isInitialLoading = userLoading && !imageInitialized;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -523,58 +487,31 @@ const ProfileScreen = ({ navigation }) => {
           { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#9C3141"
-            colors={["#9C3141"]}
-          />
-        }
       >
         {/* Profile Header */}
-        <LinearGradient
-          colors={gradientColors}
-          style={styles.profileHeader}
-        >
-          <Animated.View style={[styles.profileImageContainer, { transform: [{ scale: profileImageScale }] }]}>
-            <TouchableOpacity 
-              onPress={handleImagePicker} 
-              disabled={imageLoading || isInitialLoading}
-              style={[
-                styles.profileImageTouchable,
-                (imageLoading || isInitialLoading) && styles.profileImageDisabled
-              ]}
+        <LinearGradient colors={gradientColors} style={styles.profileHeader}>
+          <Animated.View
+            style={[
+              styles.profileImageContainer,
+              { transform: [{ scale: profileImageScale }] },
+            ]}
+          >
+            <TouchableOpacity
+              onPress={handleImagePicker}
+              style={styles.profileImageTouchable}
             >
               <Image source={displayImage} style={styles.profileImage} />
               <View style={styles.cameraButton}>
-                {imageLoading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Ionicons name="camera" size={16} color="#FFFFFF" />
-                )}
+                <Ionicons name="camera" size={16} color="#FFFFFF" />
               </View>
             </TouchableOpacity>
           </Animated.View>
-          
-          {isInitialLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#FFFFFF" />
-              <Text style={styles.loadingText}>Loading profile...</Text>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.userName}>{user.name}</Text>
-              <Text style={styles.userBio}>{user.bio}</Text>
-              <Text style={styles.joinDate}>Member since {user.joinDate}</Text>
-            </>
-          )}
-          
-          <TouchableOpacity 
-            style={[styles.shareButton, isInitialLoading && styles.shareButtonDisabled]} 
-            onPress={handleShare}
-            disabled={isInitialLoading}
-          >
+
+          <Text style={styles.userName}>{user.name}</Text>
+          <Text style={styles.userBio}>{user.bio}</Text>
+          <Text style={styles.joinDate}>Member since {user.joinDate}</Text>
+
+          <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
             <Ionicons name="share-outline" size={20} color="#FFFFFF" />
             <Text style={styles.shareButtonText}>Share Profile</Text>
           </TouchableOpacity>
@@ -610,19 +547,19 @@ const ProfileScreen = ({ navigation }) => {
               icon="person-outline"
               title="Edit Profile"
               subtitle="Update your personal information"
-              onPress={() => navigation.navigate('EditProfileScreen')}
+              onPress={() => navigation.navigate("EditProfileScreen")}
             />
             <MenuItem
               icon="shield-checkmark-outline"
               title="Privacy & Security"
               subtitle="Manage your account security"
-              onPress={() => navigation.navigate('PrivacyScreen')}
+              onPress={() => navigation.navigate("PrivacyScreen")}
             />
             <MenuItem
               icon="card-outline"
               title="Subscription"
               subtitle="Manage your premium subscription"
-              onPress={() => navigation.navigate('SubscriptionScreen')}
+              onPress={() => navigation.navigate("SubscriptionScreen")}
             />
           </View>
         </View>
@@ -635,7 +572,7 @@ const ProfileScreen = ({ navigation }) => {
               icon="notifications-outline"
               title="Notifications"
               subtitle="Push notifications and alerts"
-              onPress={() => navigation.navigate('NotificationsScreen')}
+              onPress={() => navigation.navigate("NotificationsScreen")}
             />
             <MenuItem
               icon="download-outline"
@@ -644,7 +581,9 @@ const ProfileScreen = ({ navigation }) => {
               rightElement={
                 <SettingsToggle
                   value={settings.autoDownload}
-                  onValueChange={(value) => setSettings(prev => ({ ...prev, autoDownload: value }))}
+                  onValueChange={(value) =>
+                    setSettings((prev) => ({ ...prev, autoDownload: value }))
+                  }
                 />
               }
               showArrow={false}
@@ -660,37 +599,33 @@ const ProfileScreen = ({ navigation }) => {
               icon="help-circle-outline"
               title="Help & Support"
               subtitle="Get help and contact support"
-              onPress={() => navigation.navigate('SupportScreen')}
+              onPress={() => navigation.navigate("SupportScreen")}
             />
             <MenuItem
               icon="document-text-outline"
               title="Terms & Privacy"
               subtitle="Read our terms and privacy policy"
-              onPress={() => navigation.navigate('TermsScreen')}
+              onPress={() => navigation.navigate("TermsScreen")}
             />
             <MenuItem
               icon="information-circle-outline"
               title="About"
               subtitle={`Version 1.1.0 (Build 42)`}
-              onPress={() => navigation.navigate('AboutScreen')}
+              onPress={() => navigation.navigate("AboutScreen")}
             />
           </View>
         </View>
 
         {/* Enhanced Sign Out Button with dual options */}
-        <TouchableOpacity 
-          style={[styles.signOutButton, (isSigningOut || isInitialLoading) && styles.signOutButtonDisabled]} 
+        <TouchableOpacity
+          style={[
+            styles.signOutButton,
+            isSigningOut && styles.signOutButtonDisabled,
+          ]}
           onPress={handleSignOut}
-          disabled={isSigningOut || isInitialLoading}
+          disabled={isSigningOut}
         >
-          {isSigningOut ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-
-              <Text style={styles.signOutText}>Sign Out</Text>
-            </>
-          )}
+          <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
 
         <View style={{ height: 50 }} />
@@ -699,14 +634,13 @@ const ProfileScreen = ({ navigation }) => {
   );
 };
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: "#F2F2F7",
   },
   header: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
@@ -715,28 +649,28 @@ const styles = StyleSheet.create({
   },
   headerBlur: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
     paddingBottom: 12,
     paddingHorizontal: 20,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#000000',
-    textAlign: 'center',
+    fontWeight: "600",
+    color: "#000000",
+    textAlign: "center",
   },
   backButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     left: 20,
     width: 40,
     height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
     zIndex: 1001,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -749,14 +683,14 @@ const styles = StyleSheet.create({
     paddingTop: 30,
     paddingBottom: 30,
     paddingHorizontal: 20,
-    alignItems: 'center',
+    alignItems: "center",
   },
   profileImageContainer: {
-    position: 'relative',
+    position: "relative",
     marginBottom: 16,
   },
   profileImageTouchable: {
-    position: 'relative',
+    position: "relative",
   },
   profileImageDisabled: {
     opacity: 0.7,
@@ -766,83 +700,83 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     borderWidth: 4,
-    borderColor: '#FFFFFF',
+    borderColor: "#FFFFFF",
   },
   cameraButton: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     right: 0,
-    backgroundColor: '#9C3141',
+    backgroundColor: "#9C3141",
     width: 36,
     height: 36,
     borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 3,
-    borderColor: '#FFFFFF',
+    borderColor: "#FFFFFF",
   },
   loadingContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
   },
   loadingText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
     marginTop: 8,
     opacity: 0.9,
   },
   userName: {
     fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: "700",
+    color: "#FFFFFF",
     marginBottom: 4,
   },
   userBio: {
     fontSize: 16,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     opacity: 0.9,
     marginBottom: 4,
-    textAlign: 'center',
+    textAlign: "center",
   },
   joinDate: {
     fontSize: 14,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     opacity: 0.7,
     marginBottom: 20,
   },
   shareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
   shareButtonDisabled: {
     opacity: 0.5,
   },
   shareButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginLeft: 8,
   },
   statsContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: 20,
     paddingVertical: 20,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   statCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     flex: 1,
     marginHorizontal: 4,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -852,62 +786,62 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 8,
   },
   statValue: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#000000',
+    fontWeight: "700",
+    color: "#000000",
     marginBottom: 4,
   },
   statTitle: {
     fontSize: 12,
-    color: '#8E8E93',
-    textAlign: 'center',
+    color: "#8E8E93",
+    textAlign: "center",
   },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#000000',
+    fontWeight: "700",
+    color: "#000000",
     paddingHorizontal: 20,
     marginBottom: 12,
   },
   menuContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     marginHorizontal: 20,
     borderRadius: 16,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
   menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   menuLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
   menuIcon: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#F8F8F8',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#F8F8F8",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   menuText: {
@@ -915,26 +849,26 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#000000',
+    fontWeight: "500",
+    color: "#000000",
   },
   menuSubtitle: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: "#8E8E93",
     marginTop: 2,
   },
   menuRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   signOutButton: {
-    backgroundColor: '#9C3141',
+    backgroundColor: "#9C3141",
     marginHorizontal: 20,
     marginTop: 20,
     paddingVertical: 16,
     borderRadius: 16,
-    alignItems: 'center',
-    shadowColor: '#9C3141',
+    alignItems: "center",
+    shadowColor: "#9C3141",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -944,9 +878,9 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   signOutText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
 
