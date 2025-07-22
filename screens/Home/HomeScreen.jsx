@@ -349,6 +349,7 @@ export default function HomeScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         style={styles.scrollView}
+        numberOfLines={1}
       >
         {/* Trending Podcasts (API only) */}
         {renderSection(
