@@ -41,8 +41,14 @@ export default function PodcastDetailsScreen() {
   const route = useRoute();
   const navigation = useNavigation();
 
-  const { loadAudio, setCurrentPodcast, playPause, sound } =
-    useGlobalAudioPlayer();
+  const { 
+    loadAudio, 
+    setCurrentPodcast, 
+    playPause, 
+    sound,
+    addToQueue,
+    queue
+  } = useGlobalAudioPlayer();
 
   // Get podcast data from route params or fetch by ID
   const podcastId = route?.params?.podcast?.id || route?.params?.podcastId;
@@ -212,6 +218,84 @@ export default function PodcastDetailsScreen() {
     return null;
   };
 
+  // Helper function to create podcast object for player/queue
+  const createPodcastObject = (episode) => {
+    const episodeImage = normalizeImageSource(episode.image);
+    const podcastImage = normalizeImageSource(podcast?.image);
+    const primaryImage = episodeImage || podcastImage;
+
+    return {
+      id: episode.id,
+      title: episode.title,
+      author: episode.author || podcast?.author || "Unknown Host",
+      image: primaryImage,
+      audioSource:
+        episode.audioSource ||
+        episode.metadata?.audioSource ||
+        episode.audioUrl ||
+        `https://example.com/audio/${episode.id}.mp3`,
+      subtitle: episode.subtitle || episode.description,
+      description: episode.description || `Episode: ${episode.title}`,
+      duration: episode.duration,
+      publishedDate: episode.publishedDate || episode.publishedTimestamp,
+      podcastTitle: podcast?.title,
+      podcastAuthor: podcast?.author,
+      podcastImage: podcastImage,
+    };
+  };
+
+  // Get the latest episode (most recent)
+  const getLatestEpisode = () => {
+    if (!episodes || episodes.length === 0) return null;
+    
+    // Sort episodes by published date to get the most recent one
+    const sortedByDate = [...episodes].sort((a, b) => {
+      const dateA = a.publishedTimestamp || new Date(a.publishedDate || 0);
+      const dateB = b.publishedTimestamp || new Date(b.publishedDate || 0);
+      return dateB - dateA;
+    });
+    
+    return sortedByDate[0];
+  };
+
+  const playLatestEpisode = async () => {
+    const latestEpisode = getLatestEpisode();
+    if (!latestEpisode) {
+      Alert.alert("No Episodes", "No episodes available to play.");
+      return;
+    }
+
+    try {
+      console.log("Playing latest episode:", latestEpisode);
+      const podcastForPlayer = createPodcastObject(latestEpisode);
+
+      await loadAudio(podcastForPlayer.audioSource);
+      setCurrentPodcast(podcastForPlayer);
+      setCurrentlyPlaying(latestEpisode.id);
+
+      if (sound) {
+        playPause();
+      }
+
+      // Navigate to PlayerScreen if it exists in navigation
+      if (navigation.getState().routeNames.includes("PlayerScreen")) {
+        navigation.navigate("PlayerScreen", {
+          podcast: podcastForPlayer,
+          episode: {
+            ...latestEpisode,
+            image: podcastForPlayer.image,
+            podcastImage: podcastForPlayer.podcastImage,
+            podcastTitle: podcast?.title,
+            podcastAuthor: podcast?.author,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Error playing latest episode:", error);
+      Alert.alert("Error", "Unable to play episode. Please try again.");
+    }
+  };
+
   const playEpisode = async (episode) => {
     if (!episode) return;
 
@@ -219,28 +303,7 @@ export default function PodcastDetailsScreen() {
       console.log("Playing episode:", episode);
       console.log("Podcast data:", podcast);
 
-      const episodeImage = normalizeImageSource(episode.image);
-      const podcastImage = normalizeImageSource(podcast?.image);
-      const primaryImage = episodeImage || podcastImage;
-
-      const podcastForPlayer = {
-        id: episode.id,
-        title: episode.title,
-        author: episode.author || podcast?.author || "Unknown Host",
-        image: primaryImage,
-        audioSource:
-          episode.audioSource ||
-          episode.metadata?.audioSource ||
-          episode.audioUrl ||
-          `https://example.com/audio/${episode.id}.mp3`,
-        subtitle: episode.subtitle || episode.description,
-        description: episode.description || `Episode: ${episode.title}`,
-        duration: episode.duration,
-        publishedDate: episode.publishedDate || episode.publishedTimestamp,
-        podcastTitle: podcast?.title,
-        podcastAuthor: podcast?.author,
-        podcastImage: podcastImage,
-      };
+      const podcastForPlayer = createPodcastObject(episode);
 
       await loadAudio(podcastForPlayer.audioSource);
       setCurrentPodcast(podcastForPlayer);
@@ -256,8 +319,8 @@ export default function PodcastDetailsScreen() {
           podcast: podcastForPlayer,
           episode: {
             ...episode,
-            image: primaryImage,
-            podcastImage: podcastImage,
+            image: podcastForPlayer.image,
+            podcastImage: podcastForPlayer.podcastImage,
             podcastTitle: podcast?.title,
             podcastAuthor: podcast?.author,
           },
@@ -267,6 +330,76 @@ export default function PodcastDetailsScreen() {
       console.error("Error playing episode:", error);
       Alert.alert("Error", "Unable to play episode. Please try again.");
     }
+  };
+
+  // Add single episode to queue
+  const addEpisodeToQueue = async (episode) => {
+    if (!episode) return;
+
+    try {
+      console.log("Adding episode to queue:", episode);
+      const podcastForQueue = createPodcastObject(episode);
+      
+      addToQueue(podcastForQueue);
+      
+      Alert.alert(
+        "Added to Queue",
+        `"${episode.title}" has been added to your queue.`,
+        [
+          { text: "OK" },
+          { 
+            text: "View Queue", 
+            onPress: () => navigation.navigate("QueueScreen") 
+          }
+        ]
+      );
+
+    } catch (error) {
+      console.error("Error adding episode to queue:", error);
+      Alert.alert("Error", "Unable to add episode to queue. Please try again.");
+    }
+  };
+
+  // Add all episodes to queue
+  const addAllEpisodesToQueue = async () => {
+    if (!episodes || episodes.length === 0) return;
+
+    try {
+      const episodesToAdd = episodes.map(episode => createPodcastObject(episode));
+      
+      // Add all episodes to queue
+      episodesToAdd.forEach(episode => addToQueue(episode));
+      
+      Alert.alert(
+        "Added to Queue",
+        `${episodes.length} episodes have been added to your queue.`,
+        [
+          { text: "OK" },
+          { 
+            text: "View Queue", 
+            onPress: () => navigation.navigate("QueueScreen") 
+          }
+        ]
+      );
+
+    } catch (error) {
+      console.error("Error adding episodes to queue:", error);
+      Alert.alert("Error", "Unable to add episodes to queue. Please try again.");
+    }
+  };
+
+  // Show action sheet for episode options
+  const showEpisodeOptions = (episode) => {
+    Alert.alert(
+      episode.title,
+      "What would you like to do?",
+      [
+        { text: "Play Now", onPress: () => playEpisode(episode) },
+        { text: "Add to Queue", onPress: () => addEpisodeToQueue(episode) },
+        { text: "Download", onPress: () => handleDownloadEpisode(episode) },
+        { text: "Cancel", style: "cancel" }
+      ]
+    );
   };
 
   // PodcastDetailsScreen specific functions
@@ -373,6 +506,7 @@ export default function PodcastDetailsScreen() {
       key={episode.id}
       style={styles.episodeItem}
       onPress={() => playEpisode(episode)}
+      onLongPress={() => showEpisodeOptions(episode)}
     >
       <View style={styles.episodeContent}>
         <Text style={styles.episodeTitle} numberOfLines={2}>
@@ -411,6 +545,19 @@ export default function PodcastDetailsScreen() {
             }
           />
         </TouchableOpacity>
+        
+        {/* Add to Queue Button */}
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => addEpisodeToQueue(episode)}
+        >
+          <Ionicons
+            name="list-outline"
+            size={24}
+            color={colors.primary}
+          />
+        </TouchableOpacity>
+        
         <TouchableOpacity onPress={() => playEpisode(episode)}>
           <Ionicons
             name="play-circle-outline"
@@ -513,6 +660,7 @@ export default function PodcastDetailsScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+
       >
         <Animated.View
           style={[
@@ -588,9 +736,9 @@ export default function PodcastDetailsScreen() {
 
           <TouchableOpacity
             style={styles.playButtonHero}
-            onPress={() => playEpisode(episodes[0])}
+            onPress={playLatestEpisode}
             activeOpacity={0.8}
-            disabled={!episodes[0]}
+            disabled={episodes.length === 0}
           >
             <Ionicons name="play" size={20} color="#9C3141" />
             <Text style={styles.playButtonText}>Play Latest</Text>
@@ -620,15 +768,17 @@ export default function PodcastDetailsScreen() {
               <Text style={styles.sectionTitle}>
                 Episodes ({episodes.length})
               </Text>
-              {episodes.length > 1 && (
-                <TouchableOpacity
-                  style={styles.sortButton}
-                  onPress={handleSortPress}
-                >
-                  <Ionicons name="funnel-outline" size={20} color="#9C3141" />
-                  <Text style={styles.sortText}>Sort</Text>
-                </TouchableOpacity>
-              )}
+              <View style={styles.episodeHeaderActions}>
+                {episodes.length > 1 && (
+                  <TouchableOpacity
+                    style={styles.sortButton}
+                    onPress={handleSortPress}
+                  >
+                    <Ionicons name="funnel-outline" size={20} color="#9C3141" />
+                    <Text style={styles.sortText}>Sort</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             {episodesLoading ? (
