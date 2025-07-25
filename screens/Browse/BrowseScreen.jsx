@@ -38,9 +38,6 @@ export default function BrowseScreen({ navigation }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const {
-    addToQueue,
-    currentPodcast,
-    isPlaying,
     loadAudio,
     setCurrentPodcast,
     playPause,
@@ -215,7 +212,6 @@ export default function BrowseScreen({ navigation }) {
       
       // Only show alert if this is not a background refresh
       if (!backgroundLoading && !refreshing) {
-        Alert.alert("Error", "Failed to load content. Please try again.");
       }
     } finally {
       // Clear all loading states
@@ -247,7 +243,7 @@ export default function BrowseScreen({ navigation }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadContent(false); // false indicates not initial load
+    await loadContent(false);
     setRefreshing(false);
   };
 
@@ -639,20 +635,10 @@ export default function BrowseScreen({ navigation }) {
           backgroundColor={colors.transparent}
           translucent
         />
-        <View style={styles.errorContainer}>
-          <Feather name="wifi-off" size={48} color={colors.textSecondary} />
-          <Text style={styles.errorText}>Failed to load content</Text>
-          <Text style={styles.errorSubtext}>
-            Please check your connection and try again
-          </Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => loadContent(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+        <Animated.View style={[styles.titleSection, { opacity: titleOpacity }]}>
+          <Text style={styles.mainTitle}>Browse</Text>
+        </Animated.View>
+        <SkeletonPreloader/>
       </SafeAreaView>
     );
   }
@@ -694,7 +680,7 @@ export default function BrowseScreen({ navigation }) {
         onRefresh={onRefresh}
       >
 
-        {/* Enhanced Title Section */}
+        {/* Title Section */}
         <Animated.View style={[styles.titleSection, { opacity: titleOpacity }]}>
           <Text style={styles.mainTitle}>Browse</Text>
         </Animated.View>
