@@ -6,15 +6,12 @@ const AudioPlayerMenu = ({
   isVisible, 
   onClose, 
   navigation, 
-  playbackSpeed,
-  changePlaybackSpeed,
   isShuffle,
   toggleShuffle,
   isQueueLooping,
   toggleQueueLooping,
   currentPodcast,
   addToQueue,
-  queue,
   equalizerSettings
 }) => {
   const [animation] = useState(new Animated.Value(0));
@@ -36,11 +33,6 @@ const AudioPlayerMenu = ({
     }
   };
 
-  // Navigate to queue screen
-  const navigateToQueue = () => {
-    onClose();
-    navigation.navigate('QueueScreen');
-  };
 
   // Navigate to equalizer screen
   const navigateToEqualizer = () => {
@@ -122,17 +114,6 @@ const AudioPlayerMenu = ({
             <Text style={styles.sectionTitleText}>Queue</Text>
           </View>
           
-          {/* View Queue */}
-          <TouchableOpacity style={styles.menuItem} onPress={navigateToQueue}>
-            <View style={styles.menuItemContent}>
-              <Ionicons name="list" size={24} color="#333" />
-              <Text style={styles.menuItemText}>View Queue</Text>
-            </View>
-            <View style={styles.badgeContainer}>
-              <Text style={styles.badgeText}>{queue.length}</Text>
-              <Ionicons name="chevron-forward" size={18} color="#888" />
-            </View>
-          </TouchableOpacity>
           
           {/* Add to Queue */}
           <TouchableOpacity 
