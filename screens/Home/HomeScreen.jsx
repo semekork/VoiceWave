@@ -68,7 +68,7 @@ export default function HomeScreen() {
       const [trending, recent, recommendations] = await Promise.allSettled([
         getTrendingPodcastsAPI(4),
         getRecentEpisodesAPI(5),
-        getPodcastsByCategoryAPI("Documentary", 5),
+        getPodcastsByCategoryAPI("Health", 5),
       ]);
 
       const trendingPodcasts = trending.status === "fulfilled" ? trending.value : [];
