@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Image,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   Alert,
   Animated,
@@ -21,6 +20,7 @@ import { useProfileImage } from "../../context/ProfileImageContext";
 import { getAdaptiveGradientColors } from "../../utils/colorExtractor";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../hooks/useAuth";
+import { useGlobalAudioPlayer } from "../../context/AudioPlayerContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width, height } = Dimensions.get("window");
@@ -61,6 +61,9 @@ const ProfileScreen = ({ navigation }) => {
   } = useProfileImage();
 
   const { signOut: authSignOut } = useAuth();
+  
+  // Add audio player context
+  const audioPlayer = useGlobalAudioPlayer();
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const headerOpacity = scrollY.interpolate({
@@ -133,7 +136,6 @@ const ProfileScreen = ({ navigation }) => {
           totalListeningTime: listeningHours,
           subscriptions: profile?.subscriptions_count || 0,
           downloads: profile?.downloads_count || 0,
-          favoriteGenres: profile?.favorite_genres || prevUser.favoriteGenres,
         }));
       }
     } catch (error) {
@@ -335,7 +337,7 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  // Enhanced sign-out function with dual options
+  // Enhanced sign-out function with audio player cleanup
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
@@ -351,8 +353,33 @@ const ProfileScreen = ({ navigation }) => {
     try {
       setIsSigningOut(true);
 
+      // Step 1: Stop and cleanup audio player first
+      console.log("Cleaning up audio player...");
+      try {
+        // Pause current playback
+        if (audioPlayer.isPlaying) {
+          await audioPlayer.pause();
+        }
+
+        // Clear the entire queue
+        await audioPlayer.clearQueue();
+
+        // Reset current podcast info
+        audioPlayer.setCurrentPodcast(null);
+
+        console.log("Audio player cleanup completed");
+      } catch (audioError) {
+        console.error("Error cleaning up audio player:", audioError);
+        // Continue with sign out even if audio cleanup fails
+      }
+
+      // Step 2: Clear local user data
       await clearLocalUserData();
 
+      // Step 3: Clear audio-related storage
+      await clearAudioStorage();
+
+      // Step 4: Reset user state
       setUser({
         name: "",
         email: "",
@@ -364,6 +391,7 @@ const ProfileScreen = ({ navigation }) => {
       });
       setCurrentUserId(null);
 
+      // Step 5: Perform authentication sign out
       try {
         const result = await authSignOut({
           removeBiometric: true,
@@ -371,17 +399,23 @@ const ProfileScreen = ({ navigation }) => {
 
         if (result && !result.success) {
           // Optionally handle server sign out issues
+          console.warn("Server sign out had issues, but continuing with local cleanup");
         }
       } catch (serverError) {
-        // Optionally handle server sign out failure
+        console.error("Server sign out failed:", serverError);
+        // Continue with navigation even if server sign out fails
       }
 
+      // Step 6: Navigate to auth screen
       navigation.reset({
         index: 0,
         routes: [{ name: "AuthStack" }],
       });
+
     } catch (error) {
+      console.error("Sign out error:", error);
       try {
+        // Force navigation to auth screen even if there were errors
         navigation.reset({
           index: 0,
           routes: [{ name: "AuthStack" }],
@@ -413,8 +447,35 @@ const ProfileScreen = ({ navigation }) => {
       ];
 
       await AsyncStorage.multiRemove(keysToRemove);
+      console.log("Local user data cleared");
     } catch (error) {
+      console.error("Error clearing local user data:", error);
       throw error;
+    }
+  };
+
+  // Helper function to clear audio-related storage
+  const clearAudioStorage = async () => {
+    try {
+      const audioKeysToRemove = [
+        "@last_audio_source",
+        "@last_podcast_info",
+        "@audio_queue",
+        "@queue_index",
+        "@equalizer_settings",
+      ];
+
+      // Also clear any position storage keys
+      const allKeys = await AsyncStorage.getAllKeys();
+      const positionKeys = allKeys.filter(key => key.startsWith("@position_"));
+      
+      const allAudioKeys = [...audioKeysToRemove, ...positionKeys];
+      await AsyncStorage.multiRemove(allAudioKeys);
+      
+      console.log("Audio storage cleared");
+    } catch (error) {
+      console.error("Error clearing audio storage:", error);
+      // Don't throw here as this is not critical for sign out
     }
   };
 
@@ -468,10 +529,10 @@ const ProfileScreen = ({ navigation }) => {
   const displayImage = getProfileScreenImage();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-        <Ionicons name="chevron-back" size={24} color="#000000" />
+        <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
       </TouchableOpacity>
       <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
         <BlurView intensity={100} style={styles.headerBlur}>
@@ -616,7 +677,7 @@ const ProfileScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Enhanced Sign Out Button with dual options */}
+        {/* Enhanced Sign Out Button */}
         <TouchableOpacity
           style={[
             styles.signOutButton,
@@ -625,12 +686,14 @@ const ProfileScreen = ({ navigation }) => {
           onPress={handleSignOut}
           disabled={isSigningOut}
         >
-          <Text style={styles.signOutText}>Sign Out</Text>
+          <Text style={styles.signOutText}>
+            {isSigningOut ? "Signing Out..." : "Sign Out"}
+          </Text>
         </TouchableOpacity>
 
         <View style={{ height: 50 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -661,18 +724,18 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: "absolute",
-    top: 50,
+    top: 44,
     left: 20,
     width: 40,
     height: 40,
     justifyContent: "center",
     alignItems: "center",
     borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
     zIndex: 1001,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
   },
@@ -680,7 +743,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileHeader: {
-    paddingTop: 30,
+    paddingTop: 90,
     paddingBottom: 30,
     paddingHorizontal: 20,
     alignItems: "center",
