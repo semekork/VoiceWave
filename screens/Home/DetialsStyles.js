@@ -1,11 +1,11 @@
 import { StyleSheet,Platform } from "react-native";
 
-const HEADER_HEIGHT = 320;
+const HEADER_HEIGHT = 350;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#fff",
   },
   scrollView: {
     flex: 1,
@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   podcastImage: {
-    width: 120,
+    width: 100,
     height: 120,
     borderRadius: 12,
     marginBottom: 16,
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   },
   floatingActionButtons: {
     position: "absolute",
-    top: HEADER_HEIGHT - 30,
+    top: HEADER_HEIGHT + 5,
     left: 20,
     right: 20,
     flexDirection: "row",
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    marginTop: -10,
+    marginTop: 20,
     paddingTop: 50,
     paddingHorizontal: 20,
     minHeight: 400,
