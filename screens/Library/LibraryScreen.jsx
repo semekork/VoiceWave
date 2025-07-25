@@ -58,14 +58,7 @@ const librarySections = [
     color: '#FF3B30',
     count: 0
   },
-  {
-    id: 'playlists',
-    title: 'Playlists',
-    subtitle: 'Your custom collections',
-    icon: 'list-outline',
-    color: '#FF9500',
-    count: 0
-  }
+  
 ];
 
 export default function LibraryScreen({ navigation }) {
@@ -234,8 +227,6 @@ export default function LibraryScreen({ navigation }) {
         return libraryData.downloadedEpisodes;
       case 'favorites':
         return libraryData.favoriteEpisodes;
-      case 'playlists':
-        return libraryData.playlists;
       default:
         return [];
     }
@@ -499,13 +490,13 @@ export default function LibraryScreen({ navigation }) {
             />
           </View>
           <Text style={styles.emptyTitle}>
-            {selectedSection === 'playlists' ? 'No Playlists Yet' : 
+            {
              selectedSection === 'favorites' ? 'No Favorites Yet' : 
              selectedSection === 'downloaded' ? 'No Downloads Yet' :
              'Nothing Here Yet'}
           </Text>
           <Text style={styles.emptySubtext}>
-            {selectedSection === 'playlists' ? 'Create your first playlist to organize your episodes' : 
+            {
              selectedSection === 'favorites' ? 'Heart episodes you love to find them here' : 
              selectedSection === 'downloaded' ? 'Download episodes to listen offline' :
              'Content will appear here as you use the app'}
