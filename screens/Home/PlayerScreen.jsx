@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  StyleSheet,
   View,
   Text,
   Image,
@@ -8,19 +7,17 @@ import {
   SafeAreaView,
   StatusBar,
   Dimensions,
-  Alert,
   Animated
 } from 'react-native';
-import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
-
-
+import { Ionicons} from '@expo/vector-icons';
+import styles from './playerStyles';
 import { useGlobalAudioPlayer } from '../../context/AudioPlayerContext';
 import AudioPlayerMenu from '../../components/AudioPlayerOptions';
 import SleepTimer from '../../components/SleepTimer';
 import PlayerControls from '../../components/PlayerControls';
 import VolumeControls from '../../components/VolumeControls';
 import WaveformPlayer from '../../components/WaveformPlayer';
-import { MenuButtonContainer } from '../../components/PlayerMenuButton'; 
+import { MenuButtonContainer } from '../../components/PlayerMenuButton';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -41,11 +38,15 @@ export default function PlayerScreen({ navigation, route }) {
     pause,
     currentPodcast,
     queue,
+    queueIndex,
     isShuffle,
     toggleShuffle,
     isQueueLooping,
     toggleQueueLooping,
-    addToQueue
+    addToQueue,
+    playNext,
+    playPrevious,
+    setQueueAndPlay
   } = useGlobalAudioPlayer();
 
   const routeParams = route?.params || {};
@@ -56,7 +57,6 @@ export default function PlayerScreen({ navigation, route }) {
                       podcastInfo.podcastTitle || 
                       'Unknown Title';
                       
-                         
   const podcastImage = routeParams.podcastImage || 
                       podcastInfo.image || 
                       podcastInfo.podcastImage || 
@@ -83,14 +83,12 @@ export default function PlayerScreen({ navigation, route }) {
   // Podcast cover scale animation based on play/pause state
   useEffect(() => {
     if (isPlaying) {
-      // Scale up when playing
       Animated.timing(pulseAnimation, {
         toValue: 1.05,
         duration: 300,
         useNativeDriver: true,
       }).start();
     } else {
-      // Scale back to default when paused
       Animated.timing(pulseAnimation, {
         toValue: 1,
         duration: 300,
@@ -98,6 +96,24 @@ export default function PlayerScreen({ navigation, route }) {
       }).start();
     }
   }, [isPlaying]);
+
+  // Handle skip forward with queue support
+  const handleSkipForward = () => {
+    if (queue.length > 0 && queueIndex < queue.length - 1) {
+      playNext();
+    } else {
+      skipForward();
+    }
+  };
+
+  // Handle skip backward with queue support
+  const handleSkipBackward = () => {
+    if (queue.length > 0 && queueIndex > 0) {
+      playPrevious();
+    } else {
+      skipBackward();
+    }
+  };
 
   // Menu toggle handler
   const handleMenuToggle = () => {
@@ -122,7 +138,6 @@ export default function PlayerScreen({ navigation, route }) {
     } else if (podcastImage && podcastImage.uri) {
       return podcastImage;
     } else {
-      // Fallback to default image
       return require('../../assets/gratitude.jpeg');
     }
   };
@@ -145,6 +160,17 @@ export default function PlayerScreen({ navigation, route }) {
           onQueuePress={handleNavigateToQueue}
         />
       </View>
+
+      {/* Queue Info */}
+      {queue.length > 0 && (
+        <View style={styles.queueInfo}>
+          <Text style={styles.queueText}>
+            {queueIndex + 1} of {queue.length} in queue
+          </Text>
+          {isShuffle && <Text style={styles.shuffleIndicator}>🔀 Shuffle</Text>}
+          {isQueueLooping && <Text style={styles.loopIndicator}>🔁 Loop</Text>}
+        </View>
+      )}
 
       {/* Animated Podcast Cover */}
       <View style={styles.podcastCover}>
@@ -174,6 +200,11 @@ export default function PlayerScreen({ navigation, route }) {
         <Text style={styles.title} numberOfLines={1}>
           {podcastTitle}
         </Text>
+        {podcastInfo.author && (
+          <Text style={styles.author} numberOfLines={1}>
+            by {podcastInfo.author}
+          </Text>
+        )}
       </View>
 
       {/* Waveform */}
@@ -196,10 +227,14 @@ export default function PlayerScreen({ navigation, route }) {
         duration={duration}
         playbackSpeed={playbackSpeed}
         onPlayPause={playPause}
-        onSkipBackward={() => skipBackward()}
-        onSkipForward={() => skipForward()}
+        onSkipBackward={handleSkipBackward}
+        onSkipForward={handleSkipForward}
         onChangePlaybackSpeed={changePlaybackSpeed}
         sleepTimerButton={sleepTimer.sleepTimerButton}
+        // Queue-specific controls
+        hasPrevious={queue.length > 0 && queueIndex > 0}
+        hasNext={queue.length > 0 && queueIndex < queue.length - 1}
+        showQueueControls={queue.length > 0}
       />
 
       {/* Volume Controls */}
@@ -243,80 +278,8 @@ export default function PlayerScreen({ navigation, route }) {
         currentPodcast={currentPodcast}
         addToQueue={addToQueue}
         queue={queue}
+        queueIndex={queueIndex}
       />
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-  },
-  backButton: {
-    padding: 8,
-  },
-  podcastCover: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
-    marginBottom: 20,
-  },
-  coverContainer: {
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 15,
-  },
-  podcast: {
-    width: SCREEN_WIDTH * 0.8,
-    height: SCREEN_WIDTH * 0.8,
-    borderRadius: 20,
-    backgroundColor: '#E0E0E0', 
-  },
-  infoContainer: {
-    alignItems: 'center',
-    marginBottom: 30,
-    paddingHorizontal: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    color: '#000',
-  },
-  timeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 22,
-    marginBottom: 20,
-  },
-  timeText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  overlayBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  overlayTouchable: {
-    flex: 1,
-  },
-});
