@@ -16,7 +16,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.semekor.k.Voicewave",
       "displayName": "VoiceWave",
-        "deploymentTarget": "12.0"
+      "deploymentTarget": "12.0"
     },
     "android": {
       "adaptiveIcon": {
@@ -32,6 +32,11 @@
     "plugins": [
       "expo-secure-store",
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c7aa4293-a1e2-4e4c-b990-c6b832e37433"
+      }
+    }
   }
 }
