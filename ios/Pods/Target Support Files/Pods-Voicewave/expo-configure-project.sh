@@ -48,4 +48,4 @@ with_node \
   --target "/Users/caleb/Desktop/GitHub/VoiceWave /ios/Pods/Target Support Files/Pods-Voicewave/ExpoModulesProvider.swift" \
   --entitlement "/Users/caleb/Desktop/GitHub/VoiceWave /ios/Voicewave/Voicewave.entitlements" \
   --platform "apple" \
-  --packages "expo" "expo-application" "expo-asset" "expo-av" "expo-blur" "expo-constants" "expo-device" "expo-file-system" "expo-font" "expo-haptics" "expo-image-manipulator" "expo-image-picker" "expo-keep-awake" "expo-linear-gradient" "expo-local-authentication" "expo-notifications" "expo-secure-store" "expo-sharing"
+  --packages "expo" "expo-application" "expo-asset" "expo-av" "expo-blur" "expo-constants" "expo-crypto" "expo-device" "expo-file-system" "expo-font" "expo-haptics" "expo-image-manipulator" "expo-image-picker" "expo-keep-awake" "expo-linear-gradient" "expo-local-authentication" "expo-notifications" "expo-secure-store" "expo-sharing" "expo-system-ui"

@@ -69,6 +69,11 @@
 			<key>isShown</key>
 			<false/>
 		</dict>
+		<key>ExpoCrypto.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
 		<key>ExpoDevice-ExpoDevice_privacy.xcscheme</key>
 		<dict>
 			<key>isShown</key>
@@ -139,6 +144,16 @@
 			<key>isShown</key>
 			<false/>
 		</dict>
+		<key>ExpoSystemUI-ExpoSystemUI_privacy.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>ExpoSystemUI.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
 		<key>FBLazyVector.xcscheme</key>
 		<dict>
 			<key>isShown</key>
@@ -165,6 +180,11 @@
 			<false/>
 		</dict>
 		<key>RCTRequired.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>RCTSystemSetting.xcscheme</key>
 		<dict>
 			<key>isShown</key>
 			<false/>

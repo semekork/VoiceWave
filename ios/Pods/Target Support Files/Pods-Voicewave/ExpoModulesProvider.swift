@@ -12,6 +12,7 @@ import ExpoAsset
 import EXAV
 import ExpoBlur
 import EXConstants
+import ExpoCrypto
 import ExpoDevice
 import ExpoFileSystem
 import ExpoFont
@@ -24,6 +25,7 @@ import ExpoLocalAuthentication
 import EXNotifications
 import ExpoSecureStore
 import ExpoSharing
+import ExpoSystemUI
 
 @objc(ExpoModulesProvider)
 public class ExpoModulesProvider: ModulesProvider {
@@ -35,6 +37,7 @@ public class ExpoModulesProvider: ModulesProvider {
       VideoViewModule.self,
       BlurViewModule.self,
       ConstantsModule.self,
+      CryptoModule.self,
       DeviceModule.self,
       FileSystemModule.self,
       FileSystemNextModule.self,
@@ -57,7 +60,8 @@ public class ExpoModulesProvider: ModulesProvider {
       SchedulerModule.self,
       ServerRegistrationModule.self,
       SecureStoreModule.self,
-      SharingModule.self
+      SharingModule.self,
+      ExpoSystemUIModule.self
     ]
   }
 
